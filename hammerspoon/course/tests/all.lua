@@ -43,6 +43,12 @@ function Tests.run()
         return nil, hotkeysErr
     end
 
+    local reliabilityOk, reliabilityErr = require("course.tests.reliability").run()
+
+    if not reliabilityOk then
+        return nil, reliabilityErr
+    end
+
     print("All course-workflow tests passed.")
     return true
 end

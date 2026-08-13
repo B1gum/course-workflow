@@ -7,7 +7,10 @@ local PREFIX = "noah.courseWorkflow."
 local KEYS = {
     activeSemester = PREFIX .. "activeSemester",
     manualCourse = PREFIX .. "manualCourse",
-    calendarAutoSwitchEnabled = PREFIX .. "calendarAutoSwitchEnabled",
+    timetableAutoSwitchEnabled = PREFIX .. "timetableAutoSwitchEnabled",
+    -- Legacy key from the Calendar.app implementation. Read-only migration
+    -- support keeps existing installations from unexpectedly flipping state.
+    legacyCalendarAutoSwitchEnabled = PREFIX .. "calendarAutoSwitchEnabled",
     manualOverrideState = PREFIX .. "manualOverrideState",
 }
 
@@ -81,8 +84,12 @@ function State.clearManualCourse()
     clear(KEYS.manualCourse)
 end
 
-function State.getCalendarAutoSwitchEnabled()
-    local value = get(KEYS.calendarAutoSwitchEnabled)
+function State.getTimetableAutoSwitchEnabled()
+    local value = get(KEYS.timetableAutoSwitchEnabled)
+
+    if value == nil then
+        value = get(KEYS.legacyCalendarAutoSwitchEnabled)
+    end
 
     if value == nil then
         return true
@@ -91,14 +98,20 @@ function State.getCalendarAutoSwitchEnabled()
     return value == true
 end
 
-function State.setCalendarAutoSwitchEnabled(enabled)
+function State.setTimetableAutoSwitchEnabled(enabled)
     if type(enabled) ~= "boolean" then
-        return nil, "calendarAutoSwitchEnabled must be a boolean."
+        return nil, "timetableAutoSwitchEnabled must be a boolean."
     end
 
-    set(KEYS.calendarAutoSwitchEnabled, enabled)
+    set(KEYS.timetableAutoSwitchEnabled, enabled)
+    clear(KEYS.legacyCalendarAutoSwitchEnabled)
     return true
 end
+
+-- Compatibility aliases for old init.lua/tests/custom bindings. New code must
+-- use the timetable names; no Calendar.app access remains anywhere in Level D.
+State.getCalendarAutoSwitchEnabled = State.getTimetableAutoSwitchEnabled
+State.setCalendarAutoSwitchEnabled = State.setTimetableAutoSwitchEnabled
 
 function State.getManualOverrideState()
     local value = get(KEYS.manualOverrideState)
@@ -134,10 +147,15 @@ function State.clearManualContext()
 end
 
 function State.snapshot()
+    local timetableEnabled = State.getTimetableAutoSwitchEnabled()
+
     return {
         activeSemester = State.getActiveSemester(),
         manualCourse = State.getManualCourse(),
-        calendarAutoSwitchEnabled = State.getCalendarAutoSwitchEnabled(),
+        timetableAutoSwitchEnabled = timetableEnabled,
+        -- Keep this mirrored field so an older rollback helper can still
+        -- restore a snapshot created by this version.
+        calendarAutoSwitchEnabled = timetableEnabled,
         manualOverrideState = State.getManualOverrideState(),
     }
 end

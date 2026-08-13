@@ -22,7 +22,7 @@ local SOURCE_LABELS = {
     [Context.SOURCE.SKIM_PATH] = "Skim path",
     [Context.SOURCE.FINDER_PATH] = "Finder path",
     [Context.SOURCE.MANUAL_COURSE] = "manual course",
-    [Context.SOURCE.CALENDAR] = "timetable",
+    [Context.SOURCE.TIMETABLE] = "timetable",
 }
 
 local function copyOptions(options)
@@ -169,6 +169,7 @@ local function actionChoice(text, actionName, options, subText)
         courseId = options.course,
         workContext = options.workContext,
         lecture = options.lecture,
+        enabled = options.enabled,
         disabledReason = disabledReason,
     }
 end
@@ -186,6 +187,10 @@ local function actionOptionsFromChoice(choice)
 
     if choice.lecture then
         options.lecture = choice.lecture
+    end
+
+    if choice.enabled ~= nil then
+        options.enabled = choice.enabled
     end
 
     if next(options) == nil then
@@ -255,6 +260,7 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
         table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
         table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
+        table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
         table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
         table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
         table.insert(choices, actionChoice("References", "openReferences", courseOptions))
@@ -306,6 +312,17 @@ function Launcher.buildRootChoices(context)
     )
     table.insert(choices, actionChoice("New Semester", "newSemester", nil))
     table.insert(choices, actionChoice("Reload Configuration", "reloadConfiguration", nil))
+
+    local timetableEnabled = State.getTimetableAutoSwitchEnabled()
+    table.insert(
+        choices,
+        actionChoice(
+            "Automatic Timetable Switching · " .. (timetableEnabled and "On" or "Off"),
+            "setTimetableAutoSwitchEnabled",
+            { enabled = not timetableEnabled },
+            "Level D uses only pre-programmed weekly course slots"
+        )
+    )
 
     return choices
 end
@@ -385,11 +402,20 @@ function Launcher.buildCourseChoices(course)
 
     table.insert(choices, header("TOOLS & RESOURCES", nil))
     table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
+    table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
     table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
     table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
     table.insert(choices, actionChoice("References", "openReferences", courseOptions))
     table.insert(choices, actionChoice("Course Webpage", "openCoursePage", courseOptions))
+
+    table.insert(choices, header("FOLDERS", nil))
     table.insert(choices, actionChoice("Open Course Root", "openCourseRoot", courseOptions))
+    table.insert(choices, actionChoice("Open Notes Folder", "openNotesFolder", courseOptions))
+    table.insert(choices, actionChoice("Open Lectures Folder", "openLecturesFolder", courseOptions))
+    table.insert(choices, actionChoice("Open Notes Figures", "openNotesFigures", courseOptions))
+    table.insert(choices, actionChoice("Open Assignments Folder", "openAssignments", courseOptions))
+    table.insert(choices, actionChoice("Open Assignment Figures", "openAssignmentFigures", courseOptions))
+    table.insert(choices, actionChoice("Open References Folder", "openReferencesFolder", courseOptions))
 
     return choices
 end
@@ -422,6 +448,7 @@ local ACTION_FIRST = {
         workContext = Context.WORK_CONTEXT.ASSIGNMENT,
     },
     { text = "MATLAB", action = "openMatlab" },
+    { text = "Open MATLAB Folder", action = "openMatlabFolder" },
     { text = "Open Literature", action = "openLiterature" },
     { text = "Open Literature Folder", action = "openLiteratureFolder" },
     { text = "References", action = "openReferences" },
@@ -430,6 +457,11 @@ local ACTION_FIRST = {
     { text = "Compile All", action = "compileAll" },
     { text = "Course Webpage", action = "openCoursePage" },
     { text = "Open Course Root", action = "openCourseRoot" },
+    { text = "Open Notes Folder", action = "openNotesFolder" },
+    { text = "Open Lectures Folder", action = "openLecturesFolder" },
+    { text = "Open Notes Figures", action = "openNotesFigures" },
+    { text = "Open Assignment Figures", action = "openAssignmentFigures" },
+    { text = "Open References Folder", action = "openReferencesFolder" },
 }
 
 function Launcher.buildActionListChoices()
@@ -620,6 +652,13 @@ local function invoke(actionName, options)
         notify("Active course · " .. (course.shortName or course.name or course.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
+    elseif actionName == "setTimetableAutoSwitchEnabled"
+        or actionName == "setCalendarAutoSwitchEnabled" then
+        notify(
+            result.enabled == true
+                and "Automatic timetable switching enabled."
+                or "Automatic timetable switching disabled."
+        )
     end
 end
 

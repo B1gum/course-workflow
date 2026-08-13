@@ -459,6 +459,37 @@ local function parseTimetable(value)
     return slots
 end
 
+local function validateTimetableAgainstCourses(
+    timetable,
+    existingCourses,
+    courseName
+)
+    for _, slot in ipairs(timetable or {}) do
+        for _, existingCourse in ipairs(existingCourses or {}) do
+            for _, existing in ipairs(existingCourse.timetable or {}) do
+                if slot.day == existing.day
+                    and slot.start < existing["end"]
+                    and slot["end"] > existing.start then
+
+                    return nil,
+                        string.format(
+                            'Timetable conflict: %s %02d-%02d overlaps %s %02d-%02d on %s.',
+                            courseName,
+                            slot.start,
+                            slot["end"],
+                            existingCourse.name,
+                            existing.start,
+                            existing["end"],
+                            slot.day
+                        )
+                end
+            end
+        end
+    end
+
+    return true
+end
+
 local TIMETABLE_DAY_LABELS = {
     monday = "Mon",
     tuesday = "Tue",
@@ -666,7 +697,17 @@ local function collectOneCourse(
         timetable, timetableError = parseTimetable(timetableText)
 
         if timetable then
-            break
+            local conflictOk, conflictErr = validateTimetableAgainstCourses(
+                timetable,
+                draft.courses,
+                name
+            )
+
+            if conflictOk then
+                break
+            end
+
+            timetableError = conflictErr
         end
 
         showError(timetableError)

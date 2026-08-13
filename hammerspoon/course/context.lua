@@ -843,7 +843,7 @@ function Context.activateManualCourse(courseReference, runtime)
     local timetableContext = nil
     local timetableErr = nil
 
-    if State.getCalendarAutoSwitchEnabled() then
+    if State.getTimetableAutoSwitchEnabled() then
         timetableContext, timetableErr = timetableEvidence(runtime)
     end
 
@@ -898,7 +898,7 @@ function Context.resolveManual(timetableContext, timetableErr)
         return nil
     end
 
-    if State.getCalendarAutoSwitchEnabled() then
+    if State.getTimetableAutoSwitchEnabled() then
         if not timetableErr then
             local override = State.getManualOverrideState()
             local activeSemester = State.getActiveSemester()
@@ -934,7 +934,7 @@ function Context.resolveManual(timetableContext, timetableErr)
 end
 
 function Context.resolveTimetable(timetableContext, timetableErr)
-    if not State.getCalendarAutoSwitchEnabled() then
+    if not State.getTimetableAutoSwitchEnabled() then
         return nil
     end
 
@@ -987,7 +987,7 @@ function Context.resolve(options, runtime)
     local timetableContext = nil
     local timetableErr = nil
 
-    if State.getCalendarAutoSwitchEnabled() then
+    if State.getTimetableAutoSwitchEnabled() then
         timetableContext, timetableErr = timetableEvidence(runtime)
     end
 

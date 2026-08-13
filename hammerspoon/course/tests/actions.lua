@@ -15,19 +15,26 @@ local EXPECTED_ACTIONS = {
     "setActiveCourse",
     "newSemester",
     "reloadConfiguration",
+    "setTimetableAutoSwitchEnabled",
     "setCalendarAutoSwitchEnabled",
     "launchCourse",
     "openCourseRoot",
+    "openNotesFolder",
+    "openLecturesFolder",
+    "openNotesFigures",
     "openNotes",
     "newLecture",
     "chooseLecture",
     "openAssignments",
+    "openAssignmentFigures",
     "newFigure",
     "findFigure",
     "openMatlab",
+    "openMatlabFolder",
     "openLiterature",
     "openLiteratureFolder",
     "openReferences",
+    "openReferencesFolder",
     "openCoursePage",
     "compileCurrent",
     "compileRecent",
@@ -78,13 +85,13 @@ local function assertContains(value, needle, label)
     end
 end
 
-local function noCalendarRuntime()
-    return { calendarContext = false }
+local function noTimetableRuntime()
+    return { timetableContext = false }
 end
 
 local function resetManual()
     State.clearManualContext()
-    State.setCalendarAutoSwitchEnabled(true)
+    State.setTimetableAutoSwitchEnabled(true)
 end
 
 local function restoreState(snapshot)
@@ -94,7 +101,7 @@ local function restoreState(snapshot)
         State.clearActiveSemester()
     end
 
-    State.setCalendarAutoSwitchEnabled(snapshot.calendarAutoSwitchEnabled)
+    State.setTimetableAutoSwitchEnabled(snapshot.timetableAutoSwitchEnabled)
 
     if snapshot.manualCourse then
         State.setManualCourse(snapshot.manualCourse)
@@ -159,7 +166,7 @@ local function runCases(courseA, courseB)
     case("explicit course outranks manual course", function()
         local activated, activateErr = Actions.setActiveCourse(
             { course = courseA.id },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertTruthy(activated, "manual activation")
@@ -171,7 +178,7 @@ local function runCases(courseA, courseB)
                 course = courseB.id,
                 path = NON_COURSE_PATH,
             },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "explicit resolution error")
@@ -187,7 +194,7 @@ local function runCases(courseA, courseB)
                 course = courseB.id,
                 workContext = Context.WORK_CONTEXT.ASSIGNMENT,
             },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "figure context error")
@@ -201,7 +208,7 @@ local function runCases(courseA, courseB)
         local context, err = Actions.resolveFor(
             "newFigure",
             { course = courseA.id },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(context, "figure context")
@@ -211,7 +218,7 @@ local function runCases(courseA, courseB)
     case("new figure bridges explicit notes scope", function()
         local captured = nil
         local runtime = {
-            calendarContext = false,
+            timetableContext = false,
             writeFigureBridge = function(path, contents)
                 return true
             end,
@@ -242,7 +249,7 @@ local function runCases(courseA, courseB)
     case("find figure bridges explicit assignment scope", function()
         local captured = nil
         local runtime = {
-            calendarContext = false,
+            timetableContext = false,
             writeFigureBridge = function(path, contents)
                 return true
             end,
@@ -286,7 +293,7 @@ local function runCases(courseA, courseB)
                 workContext = Context.WORK_CONTEXT.NOTES,
                 lecture = 7,
             },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "compile-current error")
@@ -301,7 +308,7 @@ local function runCases(courseA, courseB)
                 course = courseA.id,
                 workContext = Context.WORK_CONTEXT.ASSIGNMENT,
             },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(context, "assignment compile context")
@@ -315,7 +322,7 @@ local function runCases(courseA, courseB)
                 course = courseA.id,
                 workContext = Context.WORK_CONTEXT.NOTES,
             },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(context, "missing-lecture context")
@@ -328,7 +335,7 @@ local function runCases(courseA, courseB)
         local context, err = Actions.resolveFor(
             "openNotes",
             { path = NON_COURSE_PATH },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(context, "no-context result")
@@ -340,7 +347,7 @@ local function runCases(courseA, courseB)
 
         local course, err = Actions.setActiveCourse(
             { course = courseB.id },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "set-active-course error")
@@ -353,7 +360,7 @@ local function runCases(courseA, courseB)
 
         local course, err = Actions.setActiveCourse(
             courseA,
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "course-object error")
@@ -385,30 +392,93 @@ local function runCases(courseA, courseB)
         assertTruthy(result, "reload-configuration result")
     end)
 
-    case("calendar auto switching is controlled through the central API", function()
-        local previous = State.getCalendarAutoSwitchEnabled()
+    case("reload clears stale manual course state", function()
+        local oldReload = Registry.reload
+        local oldGetCourse = Registry.getCourse
 
-        local disabled, disableErr = Actions.setCalendarAutoSwitchEnabled(false)
-        assertNil(disableErr, "calendar disable error")
-        assertEqual(disabled.enabled, false, "calendar disable result")
+        State.setManualCourse(courseA.id)
+        State.setManualOverrideState({
+            version = 2,
+            semesterId = TEST_SEMESTER,
+            baselineKnown = true,
+            timetableSlotKeys = { "old-slot" },
+        })
+
+        Registry.reload = function()
+            return true
+        end
+        Registry.getCourse = function()
+            return nil
+        end
+
+        local ok, err = Actions.reloadConfiguration()
+
+        Registry.reload = oldReload
+        Registry.getCourse = oldGetCourse
+
+        assertTruthy(ok, "reload stale-state result")
+        assertNil(err, "reload stale-state error")
+        assertNil(State.getManualCourse(), "stale manual course cleared")
+        assertNil(State.getManualOverrideState(), "stale manual override cleared")
+    end)
+
+    case("reload preserves valid manual course but rebuilds timetable baseline", function()
+        local oldReload = Registry.reload
+        local oldGetCourse = Registry.getCourse
+
+        State.setManualCourse(courseA.id)
+        State.setManualOverrideState({
+            version = 2,
+            semesterId = TEST_SEMESTER,
+            baselineKnown = true,
+            timetableSlotKeys = { "old-slot" },
+        })
+
+        Registry.reload = function()
+            return true
+        end
+        Registry.getCourse = function(id)
+            if id == courseA.id then
+                return courseA
+            end
+            return nil
+        end
+
+        local ok, err = Actions.reloadConfiguration()
+
+        Registry.reload = oldReload
+        Registry.getCourse = oldGetCourse
+
+        assertTruthy(ok, "reload valid-state result")
+        assertNil(err, "reload valid-state error")
+        assertEqual(State.getManualCourse(), courseA.id, "valid manual course preserved")
+        assertNil(State.getManualOverrideState(), "timetable baseline invalidated")
+    end)
+
+    case("timetable auto switching is controlled through the central API", function()
+        local previous = State.getTimetableAutoSwitchEnabled()
+
+        local disabled, disableErr = Actions.setTimetableAutoSwitchEnabled(false)
+        assertNil(disableErr, "timetable disable error")
+        assertEqual(disabled.enabled, false, "timetable disable result")
         assertEqual(
-            State.getCalendarAutoSwitchEnabled(),
+            State.getTimetableAutoSwitchEnabled(),
             false,
-            "calendar disabled state"
+            "timetable disabled state"
         )
 
-        local enabled, enableErr = Actions.setCalendarAutoSwitchEnabled({
+        local enabled, enableErr = Actions.setTimetableAutoSwitchEnabled({
             enabled = true,
         })
-        assertNil(enableErr, "calendar enable error")
-        assertEqual(enabled.enabled, true, "calendar enable result")
+        assertNil(enableErr, "timetable enable error")
+        assertEqual(enabled.enabled, true, "timetable enable result")
         assertEqual(
-            State.getCalendarAutoSwitchEnabled(),
+            State.getTimetableAutoSwitchEnabled(),
             true,
-            "calendar enabled state"
+            "timetable enabled state"
         )
 
-        State.setCalendarAutoSwitchEnabled(previous)
+        State.setTimetableAutoSwitchEnabled(previous)
     end)
 
     case("launch course performs the Part VIII app sequence", function()
@@ -416,7 +486,7 @@ local function runCases(courseA, courseB)
 
         local calls = {}
         local runtime = {
-            calendarContext = false,
+            timetableContext = false,
             pathMode = function(path)
                 if path == courseB.root then
                     return "directory"
@@ -471,7 +541,7 @@ local function runCases(courseA, courseB)
 
         local calls = {}
         local runtime = {
-            calendarContext = false,
+            timetableContext = false,
             pathMode = function(path)
                 if path == courseA.root then
                     return "directory"
@@ -524,7 +594,7 @@ local function runCases(courseA, courseB)
         local course, err = Actions.openCoursePage(
             { course = courseB.id },
             {
-                calendarContext = false,
+                timetableContext = false,
                 openURLWithBundle = function(url, bundleId)
                     openedUrl = url
                     openedBundle = bundleId
@@ -547,7 +617,7 @@ local function runCases(courseA, courseB)
         local course, err = Actions.launchCourse(
             { course = courseA.id },
             {
-                calendarContext = false,
+                timetableContext = false,
                 pathMode = function(path)
                     if path == courseA.root then
                         return "directory"
@@ -574,14 +644,220 @@ local function runCases(courseA, courseB)
         assertEqual(State.getManualCourse(), courseA.id, "terminal-failure manual course")
     end)
 
-    case("deferred action still validates explicit context", function()
-        local result, err = Actions.openCourseRoot(
-            { course = courseB.id },
-            noCalendarRuntime()
+    case("open MATLAB launches the configured MATLAB bundle", function()
+        local launchedBundle = nil
+        local course, err = Actions.openMatlab(
+            { course = courseA.id },
+            {
+                timetableContext = false,
+                launchBundle = function(bundleId)
+                    launchedBundle = bundleId
+                    return true
+                end,
+            }
         )
 
-        assertNil(result, "deferred result")
-        assertContains(err, 'Action "openCourseRoot" is defined', "deferred error")
+        assertNil(err, "open-MATLAB error")
+        assertEqual(course.id, courseA.id, "open-MATLAB course")
+        assertEqual(
+            launchedBundle,
+            "com.mathworks.matlab",
+            "open-MATLAB bundle"
+        )
+    end)
+
+    case("open MATLAB folder opens the derived course directory", function()
+        local openedPath = nil
+        local result, err = Actions.openMatlabFolder(
+            { course = courseB.id },
+            {
+                timetableContext = false,
+                pathMode = function(path)
+                    if path == courseB.matlab then
+                        return "directory"
+                    end
+
+                    return nil
+                end,
+                openPath = function(path)
+                    openedPath = path
+                    return true
+                end,
+            }
+        )
+
+        assertNil(err, "open-MATLAB-folder error")
+        assertEqual(result.course.id, courseB.id, "open-MATLAB-folder course")
+        assertEqual(result.path, courseB.matlab, "open-MATLAB-folder result path")
+        assertEqual(openedPath, courseB.matlab, "open-MATLAB-folder path")
+    end)
+
+    case("open literature opens only book.pdf in Skim", function()
+        local openedPath = nil
+        local openedBundle = nil
+        local result, err = Actions.openLiterature(
+            { course = courseA.id },
+            {
+                timetableContext = false,
+                pathMode = function(path)
+                    if path == courseA.book then
+                        return "file"
+                    end
+
+                    return nil
+                end,
+                openFileWithBundle = function(path, bundleId)
+                    openedPath = path
+                    openedBundle = bundleId
+                    return true
+                end,
+            }
+        )
+
+        assertNil(err, "open-literature error")
+        assertEqual(result.course.id, courseA.id, "open-literature course")
+        assertEqual(result.path, courseA.book, "open-literature result path")
+        assertEqual(openedPath, courseA.book, "open-literature path")
+        assertEqual(
+            openedBundle,
+            "net.sourceforge.skim-app.skim",
+            "open-literature bundle"
+        )
+    end)
+
+    case("open literature fails safely when book.pdf is unavailable", function()
+        local opened = false
+        local result, err = Actions.openLiterature(
+            { course = courseA.id },
+            {
+                timetableContext = false,
+                pathMode = function()
+                    return nil
+                end,
+                openFileWithBundle = function()
+                    opened = true
+                    return true
+                end,
+            }
+        )
+
+        assertNil(result, "missing-literature result")
+        assertContains(err, "No textbook available", "missing-literature error")
+        assertEqual(opened, false, "missing-literature did not open")
+    end)
+
+    case("literature and references folders open their derived directories", function()
+        local opened = {}
+        local runtime = {
+            timetableContext = false,
+            pathMode = function(path)
+                if path == courseB.literature or path == courseB.references then
+                    return "directory"
+                end
+
+                return nil
+            end,
+            openPath = function(path)
+                table.insert(opened, path)
+                return true
+            end,
+        }
+
+        local literature, literatureErr = Actions.openLiteratureFolder(
+            { course = courseB.id },
+            runtime
+        )
+        local references, referencesErr = Actions.openReferences(
+            { course = courseB.id },
+            runtime
+        )
+
+        assertNil(literatureErr, "literature-folder error")
+        assertNil(referencesErr, "references-folder error")
+        assertEqual(literature.path, courseB.literature, "literature-folder path")
+        assertEqual(references.path, courseB.references, "references-folder path")
+        assertEqual(opened[1], courseB.literature, "literature-folder opened path")
+        assertEqual(opened[2], courseB.references, "references-folder opened path")
+    end)
+
+    case("Part XVI folder actions open only derived course directories", function()
+        local opened = {}
+        local expected = {
+            [courseB.root] = true,
+            [courseB.notes.root] = true,
+            [courseB.notes.lectures] = true,
+            [courseB.notes.figures] = true,
+            [courseB.assignments.root] = true,
+            [courseB.assignments.figures] = true,
+            [courseB.matlab] = true,
+            [courseB.literature] = true,
+            [courseB.references] = true,
+        }
+        local runtime = {
+            timetableContext = false,
+            pathMode = function(path)
+                return expected[path] and "directory" or nil
+            end,
+            openPath = function(path)
+                table.insert(opened, path)
+                return true
+            end,
+        }
+
+        local calls = {
+            { Actions.openCourseRoot, courseB.root },
+            { Actions.openNotesFolder, courseB.notes.root },
+            { Actions.openLecturesFolder, courseB.notes.lectures },
+            { Actions.openNotesFigures, courseB.notes.figures },
+            { Actions.openAssignments, courseB.assignments.root },
+            { Actions.openAssignmentFigures, courseB.assignments.figures },
+            { Actions.openMatlabFolder, courseB.matlab },
+            { Actions.openLiteratureFolder, courseB.literature },
+            { Actions.openReferencesFolder, courseB.references },
+        }
+
+        for index, entry in ipairs(calls) do
+            local result, err = entry[1]({ course = courseB.id }, runtime)
+            assertNil(err, "folder action error " .. tostring(index))
+            assertEqual(result.path, entry[2], "folder action path " .. tostring(index))
+            assertEqual(opened[index], entry[2], "folder opened path " .. tostring(index))
+        end
+    end)
+
+    case("missing Part XVI folder fails visibly without opening anything", function()
+        local opened = false
+        local result, err = Actions.openLecturesFolder(
+            { course = courseB.id },
+            {
+                timetableContext = false,
+                pathMode = function()
+                    return nil
+                end,
+                openPath = function()
+                    opened = true
+                    return true
+                end,
+            }
+        )
+
+        assertNil(result, "missing-folder result")
+        assertContains(err, "Lectures folder is missing", "missing-folder error")
+        assertEqual(opened, false, "missing-folder did not open")
+    end)
+
+    case("folder actions reject paths outside the configured course root", function()
+        local original = courseB.notes.lectures
+        courseB.notes.lectures = "/tmp/not-inside-course"
+
+        local result, err = Actions.openLecturesFolder(
+            { course = courseB.id },
+            { timetableContext = false }
+        )
+
+        courseB.notes.lectures = original
+
+        assertNil(result, "escaped-folder result")
+        assertContains(err, "outside the course root", "escaped-folder error")
     end)
 
     case("compile current starts a selective build with exact lecture", function()
@@ -593,7 +869,7 @@ local function runCases(courseA, courseB)
                 lecture = 7,
             },
             {
-                calendarContext = false,
+                timetableContext = false,
                 startLatexBuild = function(course, request)
                     captured = { course = course, request = request }
                     return { started = true }
@@ -616,7 +892,7 @@ local function runCases(courseA, courseB)
         local result, err = Actions.compileAll(
             { course = courseB.id },
             {
-                calendarContext = false,
+                timetableContext = false,
                 startLatexBuild = function(course, request)
                     captured = { course = course, request = request }
                     return { started = true }
@@ -656,7 +932,7 @@ local function runCases(courseA, courseB)
         local context, err = Actions.resolveFor(
             "notARealAction",
             { course = courseA.id },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(context, "unknown action result")

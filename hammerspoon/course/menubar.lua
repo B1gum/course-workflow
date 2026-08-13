@@ -19,7 +19,7 @@ local SOURCE_LABELS = {
     [Context.SOURCE.SKIM_PATH] = "Skim path",
     [Context.SOURCE.FINDER_PATH] = "Finder path",
     [Context.SOURCE.MANUAL_COURSE] = "manual course",
-    [Context.SOURCE.CALENDAR] = "timetable",
+    [Context.SOURCE.TIMETABLE] = "timetable",
 }
 
 local function defaultNotify(message)
@@ -171,7 +171,8 @@ function Menubar.invoke(actionName, options)
         notify("Active semester · " .. tostring(result.name or result.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
-    elseif actionName == "setCalendarAutoSwitchEnabled" then
+    elseif actionName == "setTimetableAutoSwitchEnabled"
+        or actionName == "setCalendarAutoSwitchEnabled" then
         notify(
             result.enabled == true
                 and "Automatic timetable switching enabled."
@@ -330,6 +331,16 @@ local function figuresMenu(context)
     }
 end
 
+local function matlabMenu(context)
+    local course = context and context.course or nil
+    local options = course and explicitCourseOptions(course) or nil
+
+    return {
+        actionItem("Open MATLAB", "openMatlab", options),
+        actionItem("Open MATLAB Folder", "openMatlabFolder", options),
+    }
+end
+
 local function literatureMenu(context)
     local course = context and context.course or nil
     local options = course and explicitCourseOptions(course) or nil
@@ -337,6 +348,26 @@ local function literatureMenu(context)
     return {
         actionItem("Open Textbook", "openLiterature", options),
         actionItem("Open Literature Folder", "openLiteratureFolder", options),
+    }
+end
+
+local function foldersMenu(context)
+    local course = context and context.course or nil
+    local options = course and explicitCourseOptions(course) or nil
+
+    return {
+        actionItem("Course Root", "openCourseRoot", options),
+        { title = "-" },
+        actionItem("Notes", "openNotesFolder", options),
+        actionItem("Lectures", "openLecturesFolder", options),
+        actionItem("Notes Figures", "openNotesFigures", options),
+        { title = "-" },
+        actionItem("Assignments", "openAssignments", options),
+        actionItem("Assignment Figures", "openAssignmentFigures", options),
+        { title = "-" },
+        actionItem("MATLAB", "openMatlabFolder", options),
+        actionItem("Literature", "openLiteratureFolder", options),
+        actionItem("References", "openReferencesFolder", options),
     }
 end
 
@@ -357,11 +388,11 @@ function Menubar.buildMenu(context, contextErr)
         table.insert(menu, { title = "Notes", menu = notesMenu(context) })
         table.insert(menu, { title = "Assignments", menu = assignmentsMenu(context) })
         table.insert(menu, { title = "Figures", menu = figuresMenu(context) })
-        table.insert(menu, actionItem("MATLAB", "openMatlab", courseOptions))
+        table.insert(menu, { title = "MATLAB", menu = matlabMenu(context) })
         table.insert(menu, { title = "Literature", menu = literatureMenu(context) })
         table.insert(menu, actionItem("References", "openReferences", courseOptions))
         table.insert(menu, actionItem("Course Webpage", "openCoursePage", courseOptions))
-        table.insert(menu, actionItem("Open Course Root", "openCourseRoot", courseOptions))
+        table.insert(menu, { title = "Folders", menu = foldersMenu(context) })
         table.insert(menu, { title = "-" })
     else
         table.insert(menu, {
@@ -395,9 +426,9 @@ function Menubar.buildMenu(context, contextErr)
         menu,
         actionItem(
             "Automatic Timetable Switching",
-            "setCalendarAutoSwitchEnabled",
-            { enabled = not State.getCalendarAutoSwitchEnabled() },
-            { checked = State.getCalendarAutoSwitchEnabled() }
+            "setTimetableAutoSwitchEnabled",
+            { enabled = not State.getTimetableAutoSwitchEnabled() },
+            { checked = State.getTimetableAutoSwitchEnabled() }
         )
     )
 

@@ -36,20 +36,20 @@ local function assertTruthy(value, label)
     end
 end
 
-local function calendarContext(course, ...)
+local function timetableContext(course, ...)
     return {
         course = course,
         eventKeys = { ... },
     }
 end
 
-local function noCalendarRuntime()
-    return { calendarContext = false }
+local function noTimetableRuntime()
+    return { timetableContext = false }
 end
 
 local function resetManual()
     State.clearManualContext()
-    State.setCalendarAutoSwitchEnabled(true)
+    State.setTimetableAutoSwitchEnabled(true)
 end
 
 local function restoreState(snapshot)
@@ -59,7 +59,7 @@ local function restoreState(snapshot)
         State.clearActiveSemester()
     end
 
-    State.setCalendarAutoSwitchEnabled(snapshot.calendarAutoSwitchEnabled)
+    State.setTimetableAutoSwitchEnabled(snapshot.timetableAutoSwitchEnabled)
 
     if snapshot.manualCourse then
         State.setManualCourse(snapshot.manualCourse)
@@ -121,7 +121,7 @@ local function runCases(course)
         local result, err = Context.resolve({
             course = course.id,
             path = NON_COURSE_PATH,
-        }, noCalendarRuntime())
+        }, noTimetableRuntime())
 
         assertNil(err, "explicit course error")
         assertEqual(result.level, Context.LEVEL.EXPLICIT, "explicit course level")
@@ -133,7 +133,7 @@ local function runCases(course)
             course = course.id,
             workContext = Context.WORK_CONTEXT.ASSIGNMENT,
             path = NON_COURSE_PATH,
-        }, noCalendarRuntime())
+        }, noTimetableRuntime())
 
         assertNil(err, "explicit assignment error")
         assertEqual(result.level, Context.LEVEL.EXPLICIT, "explicit assignment level")
@@ -145,7 +145,7 @@ local function runCases(course)
         local result, err = Context.resolve({
             path = path,
             pathSource = Context.SOURCE.NEOVIM_PATH,
-        }, noCalendarRuntime())
+        }, noTimetableRuntime())
 
         assertNil(err, "lecture path error")
         assertEqual(result.level, Context.LEVEL.PATH, "lecture path level")
@@ -159,7 +159,7 @@ local function runCases(course)
         local result, err = Context.resolve({
             path = path,
             pathSource = Context.SOURCE.NEOVIM_PATH,
-        }, noCalendarRuntime())
+        }, noTimetableRuntime())
 
         assertNil(err, "assignment path error")
         assertEqual(result.level, Context.LEVEL.PATH, "assignment path level")
@@ -168,7 +168,7 @@ local function runCases(course)
     end)
 
     case("course root path", function()
-        local result, err = Context.resolve({ path = course.root }, noCalendarRuntime())
+        local result, err = Context.resolve({ path = course.root }, noTimetableRuntime())
 
         assertNil(err, "course root error")
         assertEqual(result.level, Context.LEVEL.PATH, "course root level")
@@ -178,7 +178,7 @@ local function runCases(course)
 
     case("non-course path", function()
         resetManual()
-        local result, err = Context.resolve({ path = NON_COURSE_PATH }, noCalendarRuntime())
+        local result, err = Context.resolve({ path = NON_COURSE_PATH }, noTimetableRuntime())
 
         assertNil(result, "non-course result")
         assertEqual(err, Context.ERROR.NO_COURSE, "non-course safe failure")
@@ -188,7 +188,7 @@ local function runCases(course)
         resetManual()
         local activated, activateErr = Context.activateManualCourse(
             course.id,
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertTruthy(activated, "manual activation")
@@ -196,7 +196,7 @@ local function runCases(course)
 
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(err, "manual-only error")
@@ -204,26 +204,26 @@ local function runCases(course)
         assertEqual(result.course.id, course.id, "manual-only course")
     end)
 
-    case("calendar course only", function()
+    case("timetable course only", function()
         resetManual()
-        local event = calendarContext(course, "event-1")
+        local event = timetableContext(course, "slot-1")
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event }
+            { timetableContext = event }
         )
 
-        assertNil(err, "calendar-only error")
-        assertEqual(result.level, Context.LEVEL.CALENDAR, "calendar-only level")
-        assertEqual(result.course.id, course.id, "calendar-only course")
+        assertNil(err, "timetable-only error")
+        assertEqual(result.level, Context.LEVEL.TIMETABLE, "timetable-only level")
+        assertEqual(result.course.id, course.id, "timetable-only course")
     end)
 
-    case("manual override during calendar event", function()
+    case("manual override during timetable slot", function()
         resetManual()
-        local event = calendarContext(course, "event-1")
+        local event = timetableContext(course, "slot-1")
 
         local activated, activateErr = Context.activateManualCourse(
             course.id,
-            { calendarContext = event }
+            { timetableContext = event }
         )
 
         assertTruthy(activated, "manual override activation")
@@ -231,21 +231,21 @@ local function runCases(course)
 
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event }
+            { timetableContext = event }
         )
 
         assertNil(err, "manual override error")
         assertEqual(result.level, Context.LEVEL.MANUAL, "manual override level")
     end)
 
-    case("next calendar event expires manual override", function()
+    case("next timetable slot expires manual override", function()
         resetManual()
-        local event1 = calendarContext(course, "event-1")
-        local event2 = calendarContext(course, "event-2")
+        local event1 = timetableContext(course, "slot-1")
+        local event2 = timetableContext(course, "slot-2")
 
         local activated, activateErr = Context.activateManualCourse(
             course.id,
-            { calendarContext = event1 }
+            { timetableContext = event1 }
         )
 
         assertTruthy(activated, "next-event activation")
@@ -253,25 +253,25 @@ local function runCases(course)
 
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event2 }
+            { timetableContext = event2 }
         )
 
         assertNil(err, "next-event error")
-        assertEqual(result.level, Context.LEVEL.CALENDAR, "next-event level")
+        assertEqual(result.level, Context.LEVEL.TIMETABLE, "next-event level")
         assertNil(State.getManualCourse(), "expired manual course")
         assertNil(State.getManualOverrideState(), "expired manual override state")
     end)
 
-    case("manual survives event ending but expires when next begins", function()
+    case("manual survives slot ending but expires when next begins", function()
         resetManual()
-        local event1 = calendarContext(course, "event-1")
-        local event2 = calendarContext(course, "event-2")
+        local event1 = timetableContext(course, "slot-1")
+        local event2 = timetableContext(course, "slot-2")
 
-        Context.activateManualCourse(course.id, { calendarContext = event1 })
+        Context.activateManualCourse(course.id, { timetableContext = event1 })
 
         local gapResult, gapErr = Context.resolve(
             { path = NON_COURSE_PATH },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(gapErr, "gap error")
@@ -279,40 +279,40 @@ local function runCases(course)
 
         local nextResult, nextErr = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event2 }
+            { timetableContext = event2 }
         )
 
         assertNil(nextErr, "post-gap next-event error")
-        assertEqual(nextResult.level, Context.LEVEL.CALENDAR, "post-gap next-event level")
+        assertEqual(nextResult.level, Context.LEVEL.TIMETABLE, "post-gap next-event level")
     end)
 
-    case("manual selected outside event expires when event begins", function()
+    case("manual selected outside slot expires when slot begins", function()
         resetManual()
-        Context.activateManualCourse(course.id, noCalendarRuntime())
+        Context.activateManualCourse(course.id, noTimetableRuntime())
 
-        local event = calendarContext(course, "event-1")
+        local event = timetableContext(course, "slot-1")
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event }
+            { timetableContext = event }
         )
 
         assertNil(err, "outside-to-event error")
-        assertEqual(result.level, Context.LEVEL.CALENDAR, "outside-to-event level")
+        assertEqual(result.level, Context.LEVEL.TIMETABLE, "outside-to-event level")
     end)
 
-    case("calendar switching disabled", function()
+    case("timetable switching disabled", function()
         resetManual()
-        Context.activateManualCourse(course.id, noCalendarRuntime())
-        State.setCalendarAutoSwitchEnabled(false)
+        Context.activateManualCourse(course.id, noTimetableRuntime())
+        State.setTimetableAutoSwitchEnabled(false)
 
-        local event = calendarContext(course, "event-1")
+        local event = timetableContext(course, "slot-1")
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            { calendarContext = event }
+            { timetableContext = event }
         )
 
-        assertNil(err, "calendar-disabled error")
-        assertEqual(result.level, Context.LEVEL.MANUAL, "calendar-disabled level")
+        assertNil(err, "timetable-disabled error")
+        assertEqual(result.level, Context.LEVEL.MANUAL, "timetable-disabled level")
     end)
 
     case("weekly timetable resolves a 4-hour Dynamics class", function()
@@ -360,7 +360,7 @@ local function runCases(course)
         resetManual()
         local result, err = Context.resolve(
             { path = NON_COURSE_PATH },
-            noCalendarRuntime()
+            noTimetableRuntime()
         )
 
         assertNil(result, "no-context result")

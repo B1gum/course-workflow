@@ -47,7 +47,7 @@ local function restoreState(snapshot)
         State.clearActiveSemester()
     end
 
-    State.setCalendarAutoSwitchEnabled(snapshot.calendarAutoSwitchEnabled)
+    State.setTimetableAutoSwitchEnabled(snapshot.timetableAutoSwitchEnabled)
 
     if snapshot.manualCourse then
         State.setManualCourse(snapshot.manualCourse)
@@ -75,7 +75,7 @@ local function prepare()
         fail(err or "Could not activate test semester.")
     end
 
-    State.setCalendarAutoSwitchEnabled(false)
+    State.setTimetableAutoSwitchEnabled(false)
 
     local course, courseErr = Registry.getCourse(COURSE_A)
 
@@ -163,14 +163,72 @@ local function runCases(course)
         local notes = itemByTitle(menu, "Notes")
         local openNotes = itemByTitle(notes.menu, "Open Notes")
         local current = itemByTitle(notes.menu, "Compile Current")
-        local futureFigure = itemByTitle(notes.menu, "New Notes Figure")
+        local notesFigure = itemByTitle(notes.menu, "New Notes Figure")
 
         assertTruthy(openNotes, "open-notes item")
         assertTruthy(current, "compile-current item")
-        assertTruthy(futureFigure, "future-figure item")
+        assertTruthy(notesFigure, "notes-figure item")
         assertEqual(openNotes.disabled, false, "open-notes enabled")
         assertEqual(current.disabled, false, "compile-current enabled")
-        assertEqual(futureFigure.disabled, true, "future figure disabled")
+        assertEqual(notesFigure.disabled, false, "notes figure enabled")
+    end)
+
+    case("MATLAB and literature expose separate app/file actions", function()
+        local menu = Menubar.buildMenu(context)
+        local matlab = itemByTitle(menu, "MATLAB")
+        local literature = itemByTitle(menu, "Literature")
+        local references = itemByTitle(menu, "References")
+
+        assertTruthy(matlab and matlab.menu, "MATLAB submenu")
+        assertTruthy(literature and literature.menu, "literature submenu")
+        assertTruthy(references, "references item")
+        assertEqual(
+            itemByTitle(matlab.menu, "Open MATLAB").disabled,
+            false,
+            "open-MATLAB enabled"
+        )
+        assertEqual(
+            itemByTitle(matlab.menu, "Open MATLAB Folder").disabled,
+            false,
+            "open-MATLAB-folder enabled"
+        )
+        assertEqual(
+            itemByTitle(literature.menu, "Open Textbook").disabled,
+            false,
+            "open-textbook enabled"
+        )
+        assertEqual(
+            itemByTitle(literature.menu, "Open Literature Folder").disabled,
+            false,
+            "open-literature-folder enabled"
+        )
+        assertEqual(references.disabled, false, "references enabled")
+    end)
+
+    case("Folders submenu exposes every Part XVI derived directory", function()
+        local menu = Menubar.buildMenu(context)
+        local folders = itemByTitle(menu, "Folders")
+
+        assertTruthy(folders and folders.menu, "folders submenu")
+
+        local names = {
+            "Course Root",
+            "Notes",
+            "Lectures",
+            "Notes Figures",
+            "Assignments",
+            "Assignment Figures",
+            "MATLAB",
+            "Literature",
+            "References",
+        }
+
+        for _, name in ipairs(names) do
+            local item = itemByTitle(folders.menu, name)
+            assertTruthy(item, name .. " folder item")
+            assertEqual(item.disabled, false, name .. " folder enabled")
+            assertEqual(type(item.fn), "function", name .. " folder callback")
+        end
     end)
 
     case("switch course submenu is explicit and marks current course", function()
@@ -187,14 +245,14 @@ local function runCases(course)
     end)
 
     case("timetable control is live central-action frontend", function()
-        State.setCalendarAutoSwitchEnabled(true)
+        State.setTimetableAutoSwitchEnabled(true)
         local menu = Menubar.buildMenu(context)
-        local calendar = itemByTitle(menu, "Automatic Timetable Switching")
+        local timetable = itemByTitle(menu, "Automatic Timetable Switching")
 
-        assertTruthy(calendar, "calendar item")
-        assertEqual(calendar.checked, true, "calendar checkmark")
-        assertEqual(calendar.disabled, false, "calendar enabled")
-        assertEqual(type(calendar.fn), "function", "calendar callback")
+        assertTruthy(timetable, "timetable item")
+        assertEqual(timetable.checked, true, "timetable checkmark")
+        assertEqual(timetable.disabled, false, "timetable enabled")
+        assertEqual(type(timetable.fn), "function", "timetable callback")
     end)
 
     case("menubar lifecycle deletes previous item on restart", function()

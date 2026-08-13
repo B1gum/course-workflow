@@ -57,7 +57,7 @@ local function restoreState(snapshot)
         State.clearActiveSemester()
     end
 
-    State.setCalendarAutoSwitchEnabled(snapshot.calendarAutoSwitchEnabled)
+    State.setTimetableAutoSwitchEnabled(snapshot.timetableAutoSwitchEnabled)
 
     if snapshot.manualCourse then
         State.setManualCourse(snapshot.manualCourse)
@@ -84,6 +84,8 @@ local function prepare()
     if not semester then
         fail(err or "Could not activate test semester.")
     end
+
+    State.setTimetableAutoSwitchEnabled(true)
 
     local course, courseErr = Registry.getCourse(COURSE_A)
 
@@ -172,15 +174,52 @@ local function runCases(course)
         assertEqual(current.valid, true, "compile-current validity")
     end)
 
-    case("management actions are implemented and selectable", function()
+    case("Part XIII and XIV resource actions are implemented", function()
+        local choices = Launcher.buildRootChoices(context)
+        local matlab = choiceByText(choices, "MATLAB")
+        local matlabFolder = choiceByText(choices, "Open MATLAB Folder")
+        local literature = choiceByText(choices, "Open Literature")
+        local literatureFolder = choiceByText(choices, "Open Literature Folder")
+        local references = choiceByText(choices, "References")
+
+        assertTruthy(matlab, "MATLAB choice")
+        assertTruthy(matlabFolder, "MATLAB-folder choice")
+        assertTruthy(literature, "literature choice")
+        assertTruthy(literatureFolder, "literature-folder choice")
+        assertTruthy(references, "references choice")
+        assertEqual(matlab.valid, true, "MATLAB validity")
+        assertEqual(matlabFolder.valid, true, "MATLAB-folder validity")
+        assertEqual(literature.valid, true, "literature validity")
+        assertEqual(literatureFolder.valid, true, "literature-folder validity")
+        assertEqual(references.valid, true, "references validity")
+    end)
+
+    case("management actions include timetable toggle", function()
+        State.setTimetableAutoSwitchEnabled(true)
         local choices = Launcher.buildRootChoices(context)
         local newSemester = choiceByText(choices, "New Semester")
         local reload = choiceByText(choices, "Reload Configuration")
+        local timetable = choiceByText(
+            choices,
+            "Automatic Timetable Switching · On"
+        )
 
         assertTruthy(newSemester, "new-semester choice")
         assertTruthy(reload, "reload choice")
+        assertTruthy(timetable, "timetable toggle choice")
         assertEqual(newSemester.valid, true, "new-semester validity")
         assertEqual(reload.valid, true, "reload validity")
+        assertEqual(timetable.valid, true, "timetable toggle validity")
+        assertEqual(
+            timetable.actionName,
+            "setTimetableAutoSwitchEnabled",
+            "timetable toggle action"
+        )
+        assertEqual(
+            timetable.enabled,
+            false,
+            "timetable toggle target state"
+        )
     end)
 
     case("course submenu exposes explicit notes and assignment figure routes", function()
@@ -194,6 +233,26 @@ local function runCases(course)
         assertEqual(notesFigure.workContext, "notes", "notes-figure context")
         assertEqual(assignmentFigure.workContext, "assignment", "assignment context")
         assertEqual(setActive.valid, true, "set-active validity")
+    end)
+
+    case("course submenu exposes all Part XVI folder actions", function()
+        local choices = Launcher.buildCourseChoices(course)
+        local names = {
+            "Open Course Root",
+            "Open Notes Folder",
+            "Open Lectures Folder",
+            "Open Notes Figures",
+            "Open Assignments Folder",
+            "Open Assignment Figures",
+            "Open References Folder",
+        }
+
+        for _, name in ipairs(names) do
+            local choice = choiceByText(choices, name)
+            assertTruthy(choice, name .. " choice")
+            assertEqual(choice.valid, true, name .. " validity")
+            assertEqual(choice.courseId, course.id, name .. " explicit course")
+        end
     end)
 
     case("action-first navigation carries fixed work context", function()

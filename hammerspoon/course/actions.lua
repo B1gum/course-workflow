@@ -36,8 +36,14 @@ Actions.SPEC = {
         implemented = true,
         context = false,
     },
+    setTimetableAutoSwitchEnabled = {
+        part = "XV",
+        implemented = true,
+        context = false,
+    },
+    -- Compatibility alias retained for old custom bindings.
     setCalendarAutoSwitchEnabled = {
-        part = "IX",
+        part = "XV",
         implemented = true,
         context = false,
     },
@@ -50,6 +56,25 @@ Actions.SPEC = {
     },
     openCourseRoot = {
         part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openNotesFolder = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openLecturesFolder = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openNotesFigures = {
+        part = "XVI",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
@@ -75,6 +100,13 @@ Actions.SPEC = {
 
     openAssignments = {
         part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openAssignmentFigures = {
+        part = "XVI",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
@@ -94,22 +126,38 @@ Actions.SPEC = {
 
     openMatlab = {
         part = "XIII",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openMatlabFolder = {
+        part = "XIII",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
 
     openLiterature = {
         part = "XIV",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
     openLiteratureFolder = {
         part = "XIV",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
     openReferences = {
         part = "XIV",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openReferencesFolder = {
+        part = "XVI",
+        implemented = true,
         context = true,
         requirements = { course = true },
     },
@@ -186,8 +234,14 @@ local function restoreState(snapshot)
         State.clearActiveSemester()
     end
 
-    local ok, err = State.setCalendarAutoSwitchEnabled(
-        snapshot.calendarAutoSwitchEnabled
+    local timetableEnabled = snapshot.timetableAutoSwitchEnabled
+
+    if timetableEnabled == nil then
+        timetableEnabled = snapshot.calendarAutoSwitchEnabled
+    end
+
+    local ok, err = State.setTimetableAutoSwitchEnabled(
+        timetableEnabled ~= false
     )
 
     if not ok then
@@ -496,15 +550,36 @@ function Actions.reloadConfiguration()
         return nil, err
     end
 
+    -- A reload may remove/rename a course or change timetable slots. Never
+    -- leave stale course state pointing at the old registry snapshot.
+    local manualCourse = State.getManualCourse()
+
+    if manualCourse then
+        local course = Registry.getCourse(manualCourse)
+
+        if not course then
+            State.clearManualContext()
+        else
+            -- Preserve the explicit manual course, but force the timetable
+            -- baseline to be rebuilt against the newly loaded schedule.
+            State.clearManualOverrideState()
+        end
+    end
+
     return true
 end
 
-function Actions.setCalendarAutoSwitchEnabled(value)
+function Actions.setTimetableAutoSwitchEnabled(value)
     local enabled = value
 
     if type(value) == "table" then
         enabled = value.enabled
 
+        if enabled == nil then
+            enabled = value.timetableAutoSwitchEnabled
+        end
+
+        -- Backwards compatibility for callers created before Part XV.
         if enabled == nil then
             enabled = value.calendarAutoSwitchEnabled
         end
@@ -514,7 +589,7 @@ function Actions.setCalendarAutoSwitchEnabled(value)
         return nil, "Timetable auto-switch state must be a boolean."
     end
 
-    local ok, err = State.setCalendarAutoSwitchEnabled(enabled)
+    local ok, err = State.setTimetableAutoSwitchEnabled(enabled)
 
     if not ok then
         return nil, err
@@ -522,6 +597,8 @@ function Actions.setCalendarAutoSwitchEnabled(value)
 
     return { enabled = enabled }
 end
+
+Actions.setCalendarAutoSwitchEnabled = Actions.setTimetableAutoSwitchEnabled
 
 local function runtimeFunction(runtime, key, fallback)
     if type(runtime) == "table" and type(runtime[key]) == "function" then
@@ -590,6 +667,37 @@ local function defaultOpenURLWithBundle(url, bundleId)
     return nil,
         string.format(
             "Could not open URL with application bundle %s.",
+            bundleId
+        )
+end
+
+local function defaultOpenPath(path)
+    local task = hs.task.new(
+        "/usr/bin/open",
+        nil,
+        nil,
+        { path }
+    )
+
+    if not task then
+        return nil, "Could not create /usr/bin/open task."
+    end
+
+    if task:start() == false then
+        return nil, "Could not start /usr/bin/open task."
+    end
+
+    return true
+end
+
+local function defaultLaunchBundle(bundleId)
+    if hs.application.launchOrFocusByBundleID(bundleId) then
+        return true
+    end
+
+    return nil,
+        string.format(
+            "Could not launch application bundle %s.",
             bundleId
         )
 end
@@ -761,6 +869,287 @@ function Actions.openCoursePage(options, runtime)
     end
 
     return context.course
+end
+
+local function openCourseDirectory(actionName, pathKey, label, options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        actionName,
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local path
+
+    if type(pathKey) == "function" then
+        path = pathKey(context.course)
+    else
+        path = context.course[pathKey]
+    end
+
+    if not Util.isNonEmptyString(path) then
+        return nil,
+            string.format(
+                "%s path is not configured for %s.",
+                label,
+                context.course.shortName or context.course.name
+            )
+    end
+
+    path = Util.normalizePath(path)
+
+    if not path or not Util.isPathWithin(path, context.course.root) then
+        return nil,
+            string.format(
+                "%s resolved outside the course root for %s.",
+                label,
+                context.course.shortName or context.course.name
+            )
+    end
+
+    local pathMode = runtimeFunction(runtime, "pathMode", defaultPathMode)
+    local modeOk, mode = pcall(pathMode, path)
+
+    if not modeOk then
+        return nil,
+            string.format(
+                "Could not inspect %s for %s: %s",
+                label,
+                context.course.shortName or context.course.name,
+                tostring(mode)
+            )
+    end
+
+    if mode ~= "directory" then
+        return nil,
+            string.format(
+                "%s is missing for %s: %s",
+                label,
+                context.course.shortName or context.course.name,
+                path
+            )
+    end
+
+    local opened, openErr = callRuntime(
+        runtime,
+        "openPath",
+        defaultOpenPath,
+        path
+    )
+
+    if not opened then
+        return nil,
+            string.format(
+                "Could not open %s for %s: %s",
+                label,
+                context.course.shortName or context.course.name,
+                tostring(openErr)
+            )
+    end
+
+    return {
+        course = context.course,
+        path = path,
+    }
+end
+
+function Actions.openCourseRoot(options, runtime)
+    return openCourseDirectory(
+        "openCourseRoot",
+        "root",
+        "Course root",
+        options,
+        runtime
+    )
+end
+
+function Actions.openNotesFolder(options, runtime)
+    return openCourseDirectory(
+        "openNotesFolder",
+        function(course) return course.notes.root end,
+        "Notes folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openLecturesFolder(options, runtime)
+    return openCourseDirectory(
+        "openLecturesFolder",
+        function(course) return course.notes.lectures end,
+        "Lectures folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openNotesFigures(options, runtime)
+    return openCourseDirectory(
+        "openNotesFigures",
+        function(course) return course.notes.figures end,
+        "Notes figures folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openAssignments(options, runtime)
+    return openCourseDirectory(
+        "openAssignments",
+        function(course) return course.assignments.root end,
+        "Assignments folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openAssignmentFigures(options, runtime)
+    return openCourseDirectory(
+        "openAssignmentFigures",
+        function(course) return course.assignments.figures end,
+        "Assignment figures folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openMatlab(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "openMatlab",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local opened, openErr = callRuntime(
+        runtime,
+        "launchBundle",
+        defaultLaunchBundle,
+        global.matlabBundleId
+    )
+
+    if not opened then
+        return nil, "Could not open MATLAB: " .. tostring(openErr)
+    end
+
+    return context.course
+end
+
+function Actions.openMatlabFolder(options, runtime)
+    return openCourseDirectory(
+        "openMatlabFolder",
+        "matlab",
+        "MATLAB folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openLiterature(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "openLiterature",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local course = context.course
+    local pathMode = runtimeFunction(runtime, "pathMode", defaultPathMode)
+    local modeOk, mode = pcall(pathMode, course.book)
+
+    if not modeOk then
+        return nil, "Could not inspect textbook path: " .. tostring(mode)
+    end
+
+    if mode == nil then
+        return nil,
+            string.format(
+                "No textbook available for %s.",
+                course.shortName or course.name
+            )
+    end
+
+    if mode ~= "file" then
+        return nil,
+            string.format(
+                "Textbook path for %s is not a regular file: %s",
+                course.shortName or course.name,
+                course.book
+            )
+    end
+
+    local opened, openErr = callRuntime(
+        runtime,
+        "openFileWithBundle",
+        defaultOpenFileWithBundle,
+        course.book,
+        global.skimBundleId
+    )
+
+    if not opened then
+        return nil,
+            string.format(
+                "Could not open textbook for %s: %s",
+                course.shortName or course.name,
+                tostring(openErr)
+            )
+    end
+
+    return {
+        course = course,
+        path = course.book,
+    }
+end
+
+function Actions.openLiteratureFolder(options, runtime)
+    return openCourseDirectory(
+        "openLiteratureFolder",
+        "literature",
+        "Literature folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openReferences(options, runtime)
+    return openCourseDirectory(
+        "openReferences",
+        "references",
+        "References folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openReferencesFolder(options, runtime)
+    return openCourseDirectory(
+        "openReferencesFolder",
+        "references",
+        "References folder",
+        options,
+        runtime
+    )
 end
 
 function Actions.launchCourse(options, runtime)

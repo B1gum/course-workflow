@@ -105,6 +105,22 @@ function Util.writeFileAtomic(path, contents)
         return nil, "Atomic write contents must be a string."
     end
 
+    path = Util.trim(path)
+
+    local parent = path:match("^(.*)/[^/]+$") or "."
+
+    if parent == "" then
+        parent = "/"
+    end
+
+    if hs.fs.attributes(parent, "mode") ~= "directory" then
+        return nil, "Atomic write parent directory does not exist: " .. parent
+    end
+
+    if hs.fs.attributes(path, "mode") == "directory" then
+        return nil, "Atomic write destination is a directory: " .. path
+    end
+
     local temporaryPath = string.format(
         "%s.tmp.%d.%06d",
         path,
