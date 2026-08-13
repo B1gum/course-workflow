@@ -64,4 +64,34 @@ function CourseWorkflow.stop()
     return true
 end
 
+local function reportStartupFailure(err)
+    local detail = tostring(err or "Unknown startup error.")
+    local message = "Course workflow failed to start: " .. detail
+
+    print(message)
+
+    if hs and hs.notify and type(hs.notify.new) == "function" then
+        pcall(function()
+            hs.notify.new({
+                title = "AU Course Workflow",
+                informativeText = detail,
+            }):send()
+        end)
+    end
+end
+
+-- Loading the module is the bootstrap. Keep exactly one require in the main
+-- ~/.hammerspoon/init.lua, for example:
+--
+--     Course = require("course")
+--
+-- Hammerspoon reloads init.lua on startup/reload, so the workflow now starts
+-- automatically without a separate Course.start() console command. All
+-- long-lived frontends already own restart-safe start/stop lifecycles.
+local started, startupErr = CourseWorkflow.start()
+
+if not started then
+    reportStartupFailure(startupErr)
+end
+
 return CourseWorkflow
