@@ -14,6 +14,11 @@ function Util.isNonEmptyString(value)
     return type(value) == "string" and Util.trim(value) ~= ""
 end
 
+function Util.shellQuote(value)
+    value = tostring(value)
+    return "'" .. value:gsub("'", "'\"'\"'") .. "'"
+end
+
 function Util.joinPath(...)
     local parts = { ... }
     local result = ""

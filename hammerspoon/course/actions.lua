@@ -7,15 +7,13 @@ local State = require("course.state")
 local Util = require("course.util")
 local Lectures = require("course.lectures")
 local LaTeX = require("course.latex")
+local Figures = require("course.figures")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
     NO_LECTURE = "No current lecture context available.",
 }
 
--- The canonical semantic action surface. Later parts replace the deferred
--- implementations, but frontends should already bind to these names rather
--- than inventing their own course/context logic.
 Actions.SPEC = {
     setActiveSemester = {
         part = "VI",
@@ -83,11 +81,13 @@ Actions.SPEC = {
 
     newFigure = {
         part = "XII",
+        implemented = true,
         context = true,
         requirements = { course = true, workContext = true },
     },
     findFigure = {
         part = "XII",
+        implemented = true,
         context = true,
         requirements = { course = true, workContext = true },
     },
@@ -322,10 +322,6 @@ function Actions.actionNames()
     return names
 end
 
--- -------------------------------------------------------------------------
--- Phase 27 — implemented management actions
--- -------------------------------------------------------------------------
-
 function Actions.setActiveSemester(value)
     local semesterId = value
 
@@ -527,10 +523,6 @@ function Actions.setCalendarAutoSwitchEnabled(value)
     return { enabled = enabled }
 end
 
--- -------------------------------------------------------------------------
--- Part VIII — course launching
--- -------------------------------------------------------------------------
-
 local function runtimeFunction(runtime, key, fallback)
     if type(runtime) == "table" and type(runtime[key]) == "function" then
         return runtime[key]
@@ -633,6 +625,40 @@ local function defaultOpenItermAt(path, bundleId)
     return true
 end
 
+
+local function defaultOpenItermCommand(command, workingDirectory, bundleId)
+    local shellCommand = "cd "
+        .. Util.shellQuote(workingDirectory)
+        .. " && "
+        .. command
+
+    local script = table.concat({
+        "tell application id " .. appleScriptString(bundleId),
+        "activate",
+        "set newWindow to (create window with default profile)",
+        "tell current session of newWindow",
+        "write text " .. appleScriptString(shellCommand),
+        "end tell",
+        "end tell",
+    }, "\n")
+
+    local ok, _, descriptor = hs.osascript.applescript(script)
+
+    if not ok then
+        local detail = nil
+
+        if type(descriptor) == "table" then
+            detail = descriptor.NSAppleScriptErrorMessage
+                or descriptor.NSLocalizedDescription
+        end
+
+        return nil,
+            "Could not launch figure workflow in iTerm2"
+                .. (detail and (": " .. tostring(detail)) or ".")
+    end
+
+    return true
+end
 
 local function defaultOpenItermNvim(path, workingDirectory, bundleId)
     local script = table.concat({
@@ -750,9 +776,6 @@ function Actions.launchCourse(options, runtime)
 
     local course = context.course
 
-    -- Phase 35, step 1: launching a course always establishes it as the manual
-    -- Level-C course. Do this before any application launch so course state is
-    -- correct even if an external app later fails to open.
     local activated, activateErr = Actions.setActiveCourse(
         { course = course.id },
         runtime
@@ -772,7 +795,6 @@ function Actions.launchCourse(options, runtime)
     local notify = runtimeFunction(runtime, "notify", defaultNotify)
     local errors = {}
 
-    -- Phase 35, step 2: a fresh iTerm2 window rooted at the course directory.
     local rootModeOk, rootMode = pcall(pathMode, course.root)
 
     if not rootModeOk then
@@ -800,8 +822,6 @@ function Actions.launchCourse(options, runtime)
         end
     end
 
-    -- Phase 35/36, step 3: only the stable literature/book.pdf symlink/path is
-    -- opened. A missing book never aborts the rest of Launch Course.
     local bookModeOk, bookMode = pcall(pathMode, course.book)
 
     if not bookModeOk then
@@ -844,8 +864,6 @@ function Actions.launchCourse(options, runtime)
         )
     end
 
-    -- Phase 35, step 4 / Phase 37: always ask Safari to open the configured
-    -- page. Duplicate tabs are intentionally accepted.
     local pageOk, pageErr = openCoursePageFor(course, global, runtime)
 
     if not pageOk then
@@ -858,10 +876,6 @@ function Actions.launchCourse(options, runtime)
 
     return course
 end
-
--- -------------------------------------------------------------------------
--- Part X — lecture management
--- -------------------------------------------------------------------------
 
 local function openNotesPath(path, course, runtime)
     local global, globalErr = workflowGlobalConfig()
@@ -1164,9 +1178,89 @@ function Actions.chooseLecture(options, runtime)
     }
 end
 
--- -------------------------------------------------------------------------
--- Part XI — selective LaTeX compilation
--- -------------------------------------------------------------------------
+local function launchFigureWorkflow(context, mode, runtime)
+    local invocation, invocationErr = Figures.invocation(
+        context.course,
+        context.workContext,
+        mode
+    )
+
+    if not invocation then
+        return nil, invocationErr
+    end
+
+    local writeBridge = runtimeFunction(
+        runtime,
+        "writeFigureBridge",
+        Util.writeFileAtomic
+    )
+
+    local writeOk, writeResult, writeErr = pcall(
+        writeBridge,
+        invocation.bridgePath,
+        invocation.bridgeContents
+    )
+
+    if not writeOk or not writeResult then
+        return nil,
+            "Could not prepare figure workflow bridge: "
+                .. tostring(writeOk and writeErr or writeResult)
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local launched, launchErr = callRuntime(
+        runtime,
+        "openFigureWorkflow",
+        defaultOpenItermCommand,
+        invocation.command,
+        invocation.projectRoot,
+        global.itermBundleId
+    )
+
+    if not launched then
+        return nil, launchErr
+    end
+
+    return {
+        course = context.course,
+        workContext = context.workContext,
+        figuresDir = invocation.figuresDir,
+        mode = mode,
+    }
+end
+
+function Actions.newFigure(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "newFigure",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    return launchFigureWorkflow(context, Figures.MODE.NEW, runtime)
+end
+
+function Actions.findFigure(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "findFigure",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    return launchFigureWorkflow(context, Figures.MODE.FIND, runtime)
+end
 
 local function courseBuildLabel(course)
     return course.shortName or course.name or course.id
@@ -1599,10 +1693,6 @@ function Actions.compileAll(options, runtime)
         runtime
     )
 end
-
--- -------------------------------------------------------------------------
--- Deferred canonical actions
--- -------------------------------------------------------------------------
 
 local function deferred(actionName, options, runtime)
     local context, contextErr = Actions.resolveFor(

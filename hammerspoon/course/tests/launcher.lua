@@ -30,16 +30,6 @@ local function assertTruthy(value, label)
     end
 end
 
-local function assertNil(value, label)
-    if value ~= nil then
-        fail(string.format(
-            "%s: expected nil, got %s",
-            label,
-            tostring(value)
-        ))
-    end
-end
-
 local function choiceByText(choices, text)
     for _, choice in ipairs(choices) do
         if choice.text == text then

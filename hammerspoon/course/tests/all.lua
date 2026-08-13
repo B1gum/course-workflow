@@ -19,6 +19,12 @@ function Tests.run()
         return nil, latexErr
     end
 
+    local figuresOk, figuresErr = require("course.tests.figures").run()
+
+    if not figuresOk then
+        return nil, figuresErr
+    end
+
     local launcherOk, launcherErr = require("course.tests.launcher").run()
 
     if not launcherOk then

@@ -226,10 +226,6 @@ local function safeCourses()
     return courses
 end
 
--- -------------------------------------------------------------------------
--- Choice builders are deliberately pure enough to inspect/test from Console.
--- -------------------------------------------------------------------------
-
 function Launcher.buildRootChoices(context)
     local choices = {}
 

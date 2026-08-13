@@ -93,10 +93,6 @@ local function resolveCourseReference(value)
     return course
 end
 
--- -------------------------------------------------------------------------
--- Context result
--- -------------------------------------------------------------------------
-
 function Context.makeResult(options)
     if type(options) ~= "table" then
         return nil, "Context result options must be a table."
@@ -179,10 +175,6 @@ function Context.makeResult(options)
     }
 end
 
--- -------------------------------------------------------------------------
--- Level A — explicit context
--- -------------------------------------------------------------------------
-
 function Context.resolveExplicit(options)
     if options == nil then
         return nil
@@ -229,10 +221,6 @@ function Context.resolveExplicit(options)
         confidence = "exact",
     })
 end
-
--- -------------------------------------------------------------------------
--- Phase 21 — strict lecture identity
--- -------------------------------------------------------------------------
 
 local function lectureNumberFromPath(path, course)
     local normalized = Util.normalizePath(path)
@@ -288,10 +276,6 @@ function Context.lectureFromPath(path, courseReference)
     return lectureNumberFromPath(path, course)
 end
 
--- -------------------------------------------------------------------------
--- Phase 20 — pure exact-path resolution
--- -------------------------------------------------------------------------
-
 function Context.resolvePath(path, source)
     if not Util.isNonEmptyString(path) then
         return nil, "Path context requires a non-empty path."
@@ -337,13 +321,6 @@ function Context.resolvePath(path, source)
         path = normalized,
     })
 end
-
--- -------------------------------------------------------------------------
--- Current assignment
---
--- Assignment filenames are unrestricted.
--- "Current assignment" means newest top-level .tex file by creation time.
--- -------------------------------------------------------------------------
 
 function Context.latestAssignmentFile(courseReference)
     local course, courseErr = resolveCourseReference(courseReference)
@@ -422,10 +399,6 @@ function Context.latestAssignmentFile(courseReference)
 
     return bestPath
 end
-
--- -------------------------------------------------------------------------
--- Exact path sources
--- -------------------------------------------------------------------------
 
 local function currentITermTTY()
     local ok, result = hs.osascript.applescript([[
@@ -654,10 +627,6 @@ function Context.resolvePathContext(options)
 
     return Context.resolvePath(path, source)
 end
-
--- -------------------------------------------------------------------------
--- Level C/D — manual + timetable context
--- -------------------------------------------------------------------------
 
 local function copyArray(values)
     local result = {}
@@ -1001,10 +970,6 @@ end
 
 -- Compatibility alias for older callers.
 Context.resolveCalendar = Context.resolveTimetable
-
--- -------------------------------------------------------------------------
--- Safe resolver A -> B -> C -> D
--- -------------------------------------------------------------------------
 
 function Context.resolve(options, runtime)
     local result, err = Context.resolveExplicit(options)

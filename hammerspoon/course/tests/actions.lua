@@ -208,6 +208,76 @@ local function runCases(courseA, courseB)
         assertEqual(err, Actions.ERROR.NO_WORK_CONTEXT, "figure error")
     end)
 
+    case("new figure bridges explicit notes scope", function()
+        local captured = nil
+        local runtime = {
+            calendarContext = false,
+            writeFigureBridge = function(path, contents)
+                return true
+            end,
+            openFigureWorkflow = function(command, workingDirectory, bundleId)
+                captured = {
+                    command = command,
+                    workingDirectory = workingDirectory,
+                    bundleId = bundleId,
+                }
+                return true
+            end,
+        }
+
+        local result, err = Actions.newFigure({
+            course = courseA.id,
+            workContext = Context.WORK_CONTEXT.NOTES,
+        }, runtime)
+
+        assertNil(err, "new-figure bridge error")
+        assertTruthy(result, "new-figure bridge result")
+        assertEqual(result.workContext, "notes", "new-figure work context")
+        assertEqual(result.figuresDir, courseA.notes.figures, "new-figure directory")
+        assertTruthy(captured, "new-figure invocation captured")
+        assertEqual(captured.workingDirectory, courseA.notes.root, "new-figure cwd")
+        assertContains(captured.command, "NOAH_COURSE_FIGURE_BRIDGE", "new-figure command")
+    end)
+
+    case("find figure bridges explicit assignment scope", function()
+        local captured = nil
+        local runtime = {
+            calendarContext = false,
+            writeFigureBridge = function(path, contents)
+                return true
+            end,
+            openFigureWorkflow = function(command, workingDirectory, bundleId)
+                captured = {
+                    command = command,
+                    workingDirectory = workingDirectory,
+                    bundleId = bundleId,
+                }
+                return true
+            end,
+        }
+
+        local result, err = Actions.findFigure({
+            course = courseB.id,
+            workContext = Context.WORK_CONTEXT.ASSIGNMENT,
+        }, runtime)
+
+        assertNil(err, "find-figure bridge error")
+        assertTruthy(result, "find-figure bridge result")
+        assertEqual(result.workContext, "assignment", "find-figure work context")
+        assertEqual(
+            result.figuresDir,
+            courseB.assignments.figures,
+            "find-figure directory"
+        )
+        assertTruthy(captured, "find-figure invocation captured")
+        assertEqual(
+            captured.workingDirectory,
+            courseB.assignments.root,
+            "find-figure cwd"
+        )
+        assertContains(captured.command, "NOAH_COURSE_FIGURE_BRIDGE", "find-figure command")
+    end)
+
     case("compile current requires exact notes lecture", function()
         local context, err = Actions.resolveFor(
             "compileCurrent",
