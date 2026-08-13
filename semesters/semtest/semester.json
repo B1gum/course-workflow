@@ -1,0 +1,8 @@
+{
+  "id": "semtest",
+  "name": "Test Semester",
+  "courses": [
+    "test-dynamics",
+    "test-materials"
+  ]
+}

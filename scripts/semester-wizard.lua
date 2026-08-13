@@ -338,28 +338,157 @@ local function validateCourseUrl(url)
 end
 
 
-local function parseCalendarAliases(value)
-    local aliases = {}
-    local seen = {}
+local TIMETABLE_DAY_ALIASES = {
+    mon = "monday",
+    monday = "monday",
+    man = "monday",
+    mandag = "monday",
 
-    -- We use semicolons rather than commas because
-    -- calendar event titles may themselves contain commas.
-    for alias in value:gmatch("[^;]+") do
-        alias = trim(alias)
+    tue = "tuesday",
+    tues = "tuesday",
+    tuesday = "tuesday",
+    tir = "tuesday",
+    tirsdag = "tuesday",
 
-        if alias ~= ""
-            and not seen[alias] then
+    wed = "wednesday",
+    wednesday = "wednesday",
+    ons = "wednesday",
+    onsdag = "wednesday",
 
-            seen[alias] = true
+    thu = "thursday",
+    thur = "thursday",
+    thurs = "thursday",
+    thursday = "thursday",
+    tor = "thursday",
+    torsdag = "thursday",
 
-            table.insert(
-                aliases,
-                alias
-            )
-        end
+    fri = "friday",
+    friday = "friday",
+    fre = "friday",
+    fredag = "friday",
+
+    sat = "saturday",
+    saturday = "saturday",
+    lor = "saturday",
+    lordag = "saturday",
+
+    sun = "sunday",
+    sunday = "sunday",
+    son = "sunday",
+    sondag = "sunday",
+}
+
+local TIMETABLE_BOUNDARIES = {
+    [8] = true,
+    [10] = true,
+    [12] = true,
+    [14] = true,
+    [16] = true,
+}
+
+local function parseTimetable(value)
+    local slots = {}
+    value = trim(value or "")
+
+    if value == "" then
+        return slots
     end
 
-    return aliases
+    local byDay = {}
+
+    for rawSlot in value:gmatch("[^;]+") do
+        rawSlot = trim(rawSlot)
+
+        local rawDay, rawStart, rawEnd = rawSlot:match(
+            "^(%a+)%s+(%d%d?)%s*%-%s*(%d%d?)$"
+        )
+
+        if not rawDay then
+            return nil,
+                'Invalid timetable slot "'
+                    .. rawSlot
+                    .. '". Use e.g. "Mon 12-16; Thu 8-10".'
+        end
+
+        local day = TIMETABLE_DAY_ALIASES[rawDay:lower()]
+
+        if not day then
+            return nil, 'Unknown timetable day "' .. rawDay .. '".'
+        end
+
+        local startHour = tonumber(rawStart)
+        local endHour = tonumber(rawEnd)
+
+        if not TIMETABLE_BOUNDARIES[startHour]
+            or not TIMETABLE_BOUNDARIES[endHour] then
+
+            return nil,
+                "Timetable boundaries must be one of 8, 10, 12, 14, or 16."
+        end
+
+        local duration = endHour - startHour
+
+        if duration ~= 2 and duration ~= 4 then
+            return nil,
+                "Each class must last exactly 2 or 4 hours."
+        end
+
+        byDay[day] = byDay[day] or {}
+
+        for _, existing in ipairs(byDay[day]) do
+            if startHour < existing["end"]
+                and endHour > existing.start then
+
+                return nil,
+                    "Timetable slots for "
+                        .. day
+                        .. " overlap."
+            end
+        end
+
+        local slot = {
+            day = day,
+            start = startHour,
+            ["end"] = endHour,
+        }
+
+        table.insert(byDay[day], slot)
+        table.insert(slots, slot)
+    end
+
+    return slots
+end
+
+local TIMETABLE_DAY_LABELS = {
+    monday = "Mon",
+    tuesday = "Tue",
+    wednesday = "Wed",
+    thursday = "Thu",
+    friday = "Fri",
+    saturday = "Sat",
+    sunday = "Sun",
+}
+
+local function formatTimetable(timetable)
+    if type(timetable) ~= "table" or #timetable == 0 then
+        return "None"
+    end
+
+    local parts = {}
+
+    for _, slot in ipairs(timetable) do
+        table.insert(
+            parts,
+            string.format(
+                "%s %02d-%02d",
+                TIMETABLE_DAY_LABELS[slot.day] or slot.day,
+                slot.start,
+                slot["end"]
+            )
+        )
+    end
+
+    return table.concat(parts, "; ")
 end
 
 
@@ -512,40 +641,35 @@ local function collectOneCourse(
     local bookSource =
         chooseOptionalBook(name)
 
-    local aliases
+    local timetable
 
     while true do
-        local aliasText =
+        local timetableText =
             prompt(
                 prefix .. " — " .. name,
 
-                "Calendar aliases\n\n"
-                    .. "Separate multiple aliases with semicolons.\n"
-                    .. "Example:\n"
-                    .. name
-                    .. "; "
-                    .. name
-                    .. " Forelæsning",
+                "Weekly timetable\n\n"
+                    .. "Enter all fixed weekly classes separated by semicolons.\n"
+                    .. "Each class must last 2 or 4 hours and use boundaries "
+                    .. "8, 10, 12, 14, or 16.\n\n"
+                    .. "Example:\nMon 12-16; Thu 8-10\n\n"
+                    .. "Leave blank if this course has no fixed weekly slot.",
 
-                name
+                ""
             )
 
-        if aliasText == nil then
+        if timetableText == nil then
             return nil
         end
 
-        aliases =
-            parseCalendarAliases(
-                aliasText
-            )
+        local timetableError
+        timetable, timetableError = parseTimetable(timetableText)
 
-        if #aliases > 0 then
+        if timetable then
             break
         end
 
-        showError(
-            "Enter at least one calendar alias."
-        )
+        showError(timetableError)
     end
 
     local course = {
@@ -559,7 +683,7 @@ local function collectOneCourse(
 
         courseUrl = courseUrl,
 
-        calendarAliases = aliases,
+        timetable = timetable,
     }
 
 
@@ -735,11 +859,8 @@ local function buildSemesterPreview(draft)
 
         table.insert(
             lines,
-            "Calendar aliases: "
-                .. table.concat(
-                    course.calendarAliases,
-                    "; "
-                )
+            "Timetable: "
+                .. formatTimetable(course.timetable)
         )
 
         table.insert(lines, "")
@@ -1180,8 +1301,7 @@ local function courseJsonFromDraft(course)
 
         courseUrl = course.courseUrl,
 
-        calendarAliases =
-            course.calendarAliases or {},
+        timetable = course.timetable or {},
     }
 
     local bookSource

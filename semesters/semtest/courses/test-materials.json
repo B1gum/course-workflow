@@ -1,0 +1,11 @@
+{
+  "id": "test-materials",
+  "name": "Test Materials",
+  "shortName": "Materials",
+  "code": "TEST456",
+  "slug": "test-materials",
+  "courseUrl": "https://example.com/materials",
+  "timetable": [
+    { "day": "tuesday", "start": 10, "end": 12 }
+  ]
+}
