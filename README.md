@@ -98,6 +98,32 @@ Keep the existing Neovim bootstrap:
 require("course_context")
 ```
 
+## Recovery / fresh-Mac setup
+
+The canonical checkout should live at:
+
+```text
+~/.config/course-workflow
+```
+
+A fresh-machine recovery is therefore deterministic:
+
+```sh
+git clone https://github.com/B1gum/course-workflow.git ~/.config/course-workflow
+cd ~/.config/course-workflow
+./scripts/install-hammerspoon.sh
+./scripts/install-reference-nvim.sh
+./scripts/doctor.sh
+```
+
+Then verify/edit `config.json`, especially `universityRoot`, install the Zotero helper with `./zotero/build-helper.sh`, enable the Zotero Safari Connector, and reload Hammerspoon. Course data itself is deliberately outside this repository; `semesters/` contains only workflow metadata while actual course files live under `universityRoot`.
+
+The separate `noah-inkscape` repository must also be restored for figure actions. The doctor script checks command-line dependencies, application presence, Hammerspoon startup, Neovim symlinks, and known test-semester/test-course debris. It is safe to rerun after upgrades or migrations.
+
+### What must be backed up
+
+Git must contain all workflow code, templates, helper source, and non-secret configuration. Zotero owns research metadata/attachments and Better BibTeX exports course bibliographies. The only intentionally machine-specific value currently committed here is the configured `universityRoot`; change it on a machine whose home path differs.
+
 ## Semester setup
 
 Create a semester through the workflow's **New Semester** action. The wizard creates the course filesystem and metadata, provisions reference collections/exports, and validates the resulting setup.
