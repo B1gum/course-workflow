@@ -194,7 +194,7 @@ function M.setup()
     vim.keymap.set("n", "<leader>rr", M.search_course, {
         desc = "Search References",
     })
-    vim.keymap.set("n", "<leader>rR", M.search_all, {
+    vim.keymap.set("n", "<leader>ra", M.search_all, {
         desc = "Search All References",
     })
     vim.keymap.set("n", "<leader>ro", M.open_reference, {

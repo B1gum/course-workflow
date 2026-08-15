@@ -17,6 +17,23 @@ If none of these resolves, the action fails safely instead of prompting for a co
 
 The central Hammerspoon action layer owns course actions. The launcher, menubar, hotkeys, Neovim bridge, LaTeX build flow, figure integration, and reference integration all delegate to that shared state/context layer.
 
+### Global Hammerspoon key layer
+
+The global course layer uses **Command+Shift (`⌘⇧`)** as its Hyper modifier.
+
+| Shortcut | Action |
+|---|---|
+| `⌘⇧Space` | Open course launcher |
+| `⌘⇧N` | Open notes |
+| `⌘⇧A` | Open assignments |
+| `⌘⇧F` | Figures (find/open/create) |
+| `⌘⇧R` | Search course references |
+| `⌘⇧M` | Open MATLAB |
+| `⌘⇧L` | Open literature |
+| `⌘⇧C` | Compile current |
+
+`⌘⇧F` deliberately uses the figure picker as the single figure entry point; the picker also exposes creation, so a separate global “new figure” shortcut is unnecessary.
+
 ## Repository layout
 
 ```text

@@ -3,7 +3,7 @@ local Hotkeys = {}
 local Actions = require("course.actions")
 local Launcher = require("course.launcher")
 
-Hotkeys.MODIFIERS = { "cmd", "alt", "ctrl", "shift" }
+Hotkeys.MODIFIERS = { "cmd", "shift" }
 
 Hotkeys.DEFINITIONS = {
     {
@@ -19,15 +19,9 @@ Hotkeys.DEFINITIONS = {
         action = "openNotes",
     },
     {
-        id = "newFigure",
-        label = "New Figure",
-        key = "f",
-        action = "newFigure",
-    },
-    {
         id = "findFigure",
-        label = "Find Figure",
-        key = "s",
+        label = "Figures",
+        key = "f",
         action = "findFigure",
     },
     {
@@ -47,6 +41,12 @@ Hotkeys.DEFINITIONS = {
         label = "Open Literature",
         key = "l",
         action = "openLiterature",
+    },
+    {
+        id = "searchReferences",
+        label = "Search References",
+        key = "r",
+        action = "searchReferences",
     },
     {
         id = "compileCurrent",
