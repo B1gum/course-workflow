@@ -367,7 +367,7 @@ local function foldersMenu(context)
         { title = "-" },
         actionItem("MATLAB", "openMatlabFolder", options),
         actionItem("Literature", "openLiteratureFolder", options),
-        actionItem("References", "openReferencesFolder", options),
+        actionItem("References Folder", "openReferencesFolder", options),
     }
 end
 
@@ -390,7 +390,10 @@ function Menubar.buildMenu(context, contextErr)
         table.insert(menu, { title = "Figures", menu = figuresMenu(context) })
         table.insert(menu, { title = "MATLAB", menu = matlabMenu(context) })
         table.insert(menu, { title = "Literature", menu = literatureMenu(context) })
-        table.insert(menu, actionItem("References", "openReferences", courseOptions))
+        table.insert(menu, actionItem("Save Reference", "saveReference", courseOptions))
+        table.insert(menu, actionItem("Save Reference Unfiled", "saveReferenceUnfiled", nil))
+        table.insert(menu, actionItem("Search References", "searchReferences", courseOptions))
+        table.insert(menu, actionItem("Open References", "openReferences", courseOptions))
         table.insert(menu, actionItem("Course Webpage", "openCoursePage", courseOptions))
         table.insert(menu, { title = "Folders", menu = foldersMenu(context) })
         table.insert(menu, { title = "-" })
@@ -402,6 +405,14 @@ function Menubar.buildMenu(context, contextErr)
         })
         table.insert(menu, { title = "-" })
     end
+
+    if not course then
+        table.insert(menu, actionItem("Save Reference", "saveReference", nil))
+        table.insert(menu, actionItem("Save Reference Unfiled", "saveReferenceUnfiled", nil))
+    end
+
+    table.insert(menu, actionItem("Search All References", "searchAllReferences", nil))
+    table.insert(menu, { title = "-" })
 
     table.insert(menu, {
         title = "Switch Course…",

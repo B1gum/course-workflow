@@ -177,11 +177,19 @@ local function runCases(course)
         local menu = Menubar.buildMenu(context)
         local matlab = itemByTitle(menu, "MATLAB")
         local literature = itemByTitle(menu, "Literature")
-        local references = itemByTitle(menu, "References")
+        local saveReference = itemByTitle(menu, "Save Reference")
+        local saveUnfiled = itemByTitle(menu, "Save Reference Unfiled")
+        local searchReferences = itemByTitle(menu, "Search References")
+        local openReferences = itemByTitle(menu, "Open References")
+        local searchAll = itemByTitle(menu, "Search All References")
 
         assertTruthy(matlab and matlab.menu, "MATLAB submenu")
         assertTruthy(literature and literature.menu, "literature submenu")
-        assertTruthy(references, "references item")
+        assertTruthy(saveReference, "save-reference item")
+        assertTruthy(saveUnfiled, "save-unfiled item")
+        assertTruthy(searchReferences, "search-references item")
+        assertTruthy(openReferences, "open-references item")
+        assertTruthy(searchAll, "search-all-references item")
         assertEqual(
             itemByTitle(matlab.menu, "Open MATLAB").disabled,
             false,
@@ -202,7 +210,11 @@ local function runCases(course)
             false,
             "open-literature-folder enabled"
         )
-        assertEqual(references.disabled, false, "references enabled")
+        assertEqual(saveReference.disabled, false, "save-reference enabled")
+        assertEqual(saveUnfiled.disabled, false, "save-unfiled enabled")
+        assertEqual(searchReferences.disabled, false, "search-references enabled")
+        assertEqual(openReferences.disabled, false, "open-references enabled")
+        assertEqual(searchAll.disabled, false, "search-all-references enabled")
     end)
 
     case("Folders submenu exposes every Part XVI derived directory", function()
@@ -220,7 +232,7 @@ local function runCases(course)
             "Assignment Figures",
             "MATLAB",
             "Literature",
-            "References",
+            "References Folder",
         }
 
         for _, name in ipairs(names) do

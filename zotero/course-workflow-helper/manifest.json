@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Course Workflow Zotero Helper",
+  "version": "1.1.0",
+  "description": "Minimal local write bridge for the AU course workflow on Zotero 7\u20139.",
+  "author": "Noah Rahbek Bigum Hansen",
+  "applications": {
+    "zotero": {
+      "id": "course-workflow-helper@noah.local",
+      "strict_min_version": "7.0",
+      "strict_max_version": "9.0.*",
+      "update_url": "https://raw.githubusercontent.com/B1gum/course-workflow/main/zotero/updates.json"
+    }
+  }
+}

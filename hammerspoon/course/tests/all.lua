@@ -13,6 +13,18 @@ function Tests.run()
         return nil, actionsErr
     end
 
+    local referencesOk, referencesErr = require("course.tests.references").run()
+
+    if not referencesOk then
+        return nil, referencesErr
+    end
+
+    local captureOk, captureErr = require("course.tests.reference_capture").run()
+
+    if not captureOk then
+        return nil, captureErr
+    end
+
     local latexOk, latexErr = require("course.tests.latex").run()
 
     if not latexOk then

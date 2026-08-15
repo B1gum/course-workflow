@@ -263,7 +263,10 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
         table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
         table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
-        table.insert(choices, actionChoice("References", "openReferences", courseOptions))
+        table.insert(choices, actionChoice("Save Reference", "saveReference", courseOptions, "Safari → Zotero → current course"))
+        table.insert(choices, actionChoice("Save Reference Unfiled", "saveReferenceUnfiled", nil, "Safari → Zotero Unfiled"))
+        table.insert(choices, actionChoice("Search References", "searchReferences", courseOptions))
+        table.insert(choices, actionChoice("Open References", "openReferences", courseOptions))
         table.insert(choices, actionChoice("Compile Current", "compileCurrent", activeOptions))
         table.insert(choices, actionChoice("Compile Recent", "compileRecent", activeOptions))
         table.insert(choices, actionChoice("Compile Range", "compileRange", courseOptions))
@@ -297,6 +300,28 @@ function Launcher.buildRootChoices(context)
             "Choose an action, then a course"
         )
     )
+
+    if not (context and context.course) then
+        table.insert(choices, actionChoice(
+            "Save Reference",
+            "saveReference",
+            nil,
+            "Safari → Zotero Unfiled when no reliable course context"
+        ))
+        table.insert(choices, actionChoice(
+            "Save Reference Unfiled",
+            "saveReferenceUnfiled",
+            nil,
+            "Always leave the capture Unfiled"
+        ))
+    end
+
+    table.insert(choices, actionChoice(
+        "Search All References",
+        "searchAllReferences",
+        nil,
+        "Global Zotero library"
+    ))
 
     local semester = Registry.getActiveSemester()
     local semesterLabel = semester and semester.name or State.getActiveSemester() or "none"
@@ -405,7 +430,10 @@ function Launcher.buildCourseChoices(course)
     table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
     table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
     table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
-    table.insert(choices, actionChoice("References", "openReferences", courseOptions))
+    table.insert(choices, actionChoice("Save Reference", "saveReference", courseOptions, "Safari → Zotero → this course"))
+    table.insert(choices, actionChoice("Save Reference Unfiled", "saveReferenceUnfiled", nil, "Safari → Zotero Unfiled"))
+    table.insert(choices, actionChoice("Search References", "searchReferences", courseOptions))
+    table.insert(choices, actionChoice("Open References", "openReferences", courseOptions))
     table.insert(choices, actionChoice("Course Webpage", "openCoursePage", courseOptions))
 
     table.insert(choices, header("FOLDERS", nil))
@@ -451,7 +479,8 @@ local ACTION_FIRST = {
     { text = "Open MATLAB Folder", action = "openMatlabFolder" },
     { text = "Open Literature", action = "openLiterature" },
     { text = "Open Literature Folder", action = "openLiteratureFolder" },
-    { text = "References", action = "openReferences" },
+    { text = "Search References", action = "searchReferences" },
+    { text = "Open References", action = "openReferences" },
     { text = "Compile Range", action = "compileRange" },
     { text = "Compile Selected", action = "compileSelected" },
     { text = "Compile All", action = "compileAll" },

@@ -14,6 +14,7 @@ local REQUIRED_GLOBAL_STRINGS = {
     "skimBundleId",
     "itermBundleId",
     "safariBundleId",
+    "zoteroBundleId",
     "matlabBundleId",
 }
 
@@ -278,13 +279,34 @@ local function validateCourse(raw, expectedId)
     end
 
     if raw.zotero ~= nil then
-        if type(raw.zotero) ~= "table"
-            or not Util.isNonEmptyString(raw.zotero.collection) then
-
+        if type(raw.zotero) ~= "table" then
             return nil, 'Course "' .. raw.id .. '" has an invalid zotero configuration.'
         end
 
-        raw.zotero.collection = Util.trim(raw.zotero.collection)
+        if raw.zotero.collection ~= nil then
+            return nil,
+                'Course "' .. raw.id .. '" still uses legacy name-based zotero.collection; use zotero.collectionKey instead.'
+        end
+
+        if not Util.isNonEmptyString(raw.zotero.collectionKey) then
+            return nil,
+                'Course "' .. raw.id .. '" has no valid zotero.collectionKey.'
+        end
+
+        local normalizedZotero = {
+            collectionKey = Util.trim(raw.zotero.collectionKey),
+        }
+
+        if raw.zotero.bookItemKey ~= nil then
+            if not Util.isNonEmptyString(raw.zotero.bookItemKey) then
+                return nil,
+                    'Course "' .. raw.id .. '" has an invalid zotero.bookItemKey.'
+            end
+
+            normalizedZotero.bookItemKey = Util.trim(raw.zotero.bookItemKey)
+        end
+
+        raw.zotero = normalizedZotero
     end
 
     return true
@@ -340,6 +362,7 @@ local function resolveCourse(raw, global, semester)
     course.literature = Util.joinPath(root, "literature")
     course.book = Util.joinPath(root, "literature", "book.pdf")
     course.references = Util.joinPath(root, "references")
+    course.referencesBib = Util.joinPath(course.references, "references.bib")
 
     course.bookSource = raw.book and raw.book.source or nil
 

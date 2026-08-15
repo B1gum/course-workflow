@@ -1,5 +1,7 @@
 local Wizard = {}
 
+local References = require("course.references")
+
 local HOME = os.getenv("HOME")
 
 local CONFIG_ROOT =
@@ -75,6 +77,15 @@ local function loadGlobalConfig()
 
     config.universityRoot =
         trim(config.universityRoot):gsub("/+$", "")
+
+    if type(config.zoteroBundleId) ~= "string"
+        or trim(config.zoteroBundleId) == "" then
+
+        return nil,
+            "config.json does not contain a valid zoteroBundleId."
+    end
+
+    config.zoteroBundleId = trim(config.zoteroBundleId)
 
     return config
 end
@@ -227,6 +238,7 @@ function Wizard.collectSemester()
         },
 
         existingSemester = existing,
+        globalConfig = globalConfig,
     }
 end
 
@@ -564,6 +576,87 @@ local function chooseOptionalBook(
         -- Cancelling the file chooser returns here,
         -- rather than cancelling the whole semester wizard.
     end
+end
+
+
+local function defaultBookTitle(bookSource)
+    local filename = tostring(bookSource or ""):match("([^/]+)$") or ""
+    filename = filename:gsub("%.[Pp][Dd][Ff]$", "")
+    filename = filename:gsub("[_%-]+", " "):gsub("%s+", " ")
+    return trim(filename)
+end
+
+
+local function collectMissingBookMetadata(draft)
+    for _, course in ipairs(draft.courses or {}) do
+        local hasBook = course.book
+            and course.book.source
+            and trim(course.book.source) ~= ""
+        local hasStableBookIdentity = course.zotero
+            and course.zotero.bookItemKey
+            and trim(course.zotero.bookItemKey) ~= ""
+
+        if hasBook and not hasStableBookIdentity then
+            local title = promptRequired(
+                "Textbook metadata — " .. course.name,
+                "Book title",
+                defaultBookTitle(course.book.source)
+            )
+
+            if title == nil then
+                return nil, "Textbook metadata entry was cancelled."
+            end
+
+            local authors = promptRequired(
+                "Textbook metadata — " .. course.name,
+                "Author(s)\n\nSeparate multiple authors with semicolons.",
+                ""
+            )
+
+            if authors == nil then
+                return nil, "Textbook metadata entry was cancelled."
+            end
+
+            local year
+
+            while true do
+                year = promptRequired(
+                    "Textbook metadata — " .. course.name,
+                    "Publication year",
+                    ""
+                )
+
+                if year == nil then
+                    return nil, "Textbook metadata entry was cancelled."
+                end
+
+                if year:match("^%d%d%d%d$") then
+                    break
+                end
+
+                showError("Publication year must be four digits, for example 2019.")
+            end
+
+            local isbn = prompt(
+                "Textbook metadata — " .. course.name,
+                "ISBN (optional; used to avoid duplicate Book items)",
+                ""
+            )
+
+            if isbn == nil then
+                return nil, "Textbook metadata entry was cancelled."
+            end
+
+            course.book.metadata = {
+                title = title,
+                authors = authors,
+                year = year,
+                isbn = isbn,
+            }
+        end
+    end
+
+    return true
 end
 
 
@@ -1362,13 +1455,20 @@ local function courseJsonFromDraft(course)
     end
 
     if course.zotero
-        and course.zotero.collection
-        and trim(course.zotero.collection) ~= "" then
+        and course.zotero.collectionKey
+        and trim(course.zotero.collectionKey) ~= "" then
 
         result.zotero = {
-            collection =
-                trim(course.zotero.collection),
+            collectionKey =
+                trim(course.zotero.collectionKey),
         }
+
+        if course.zotero.bookItemKey
+            and trim(course.zotero.bookItemKey) ~= "" then
+
+            result.zotero.bookItemKey =
+                trim(course.zotero.bookItemKey)
+        end
     end
 
     return result
@@ -1503,6 +1603,355 @@ local function validateDraftForCommit(draft)
 
     return #errors == 0, errors
 end
+
+local function hydrateExistingZoteroIdentity(draft)
+    for _, course in ipairs(draft.courses or {}) do
+        local path = Wizard.courseConfigPath(draft, course.slug)
+
+        if pathExists(path) then
+            local existing, existingErr = decodeJsonFile(path)
+
+            if not existing then
+                return nil, existingErr
+            end
+
+            local existingZotero = existing.zotero
+            existing.zotero = nil
+
+            local desired = courseJsonFromDraft(course)
+            desired.zotero = nil
+
+            if not deepEqual(existing, desired) then
+                return nil,
+                    "Existing course configuration differs from the wizard input and was preserved: "
+                        .. path
+                        .. "\nResolve the course metadata difference before Zotero provisioning."
+            end
+
+            existing.zotero = existingZotero
+
+            if existing.zotero ~= nil then
+                if type(existing.zotero) ~= "table" then
+                    return nil, "Existing course has invalid zotero configuration: " .. path
+                end
+
+                if existing.zotero.collection ~= nil then
+                    return nil,
+                        "Existing course still uses legacy name-based zotero.collection: "
+                            .. path
+                            .. "\nReplace it with a verified zotero.collectionKey before rerunning the wizard."
+                end
+
+                if not existing.zotero.collectionKey
+                    or trim(existing.zotero.collectionKey) == "" then
+
+                    return nil, "Existing course has an empty zotero.collectionKey: " .. path
+                end
+
+                course.zotero = {
+                    collectionKey = trim(existing.zotero.collectionKey),
+                }
+
+                if existing.zotero.bookItemKey ~= nil then
+                    if type(existing.zotero.bookItemKey) ~= "string"
+                        or trim(existing.zotero.bookItemKey) == "" then
+
+                        return nil, "Existing course has an invalid zotero.bookItemKey: " .. path
+                    end
+
+                    course.zotero.bookItemKey =
+                        trim(existing.zotero.bookItemKey)
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+local function writeProvisionedCourseConfig(draft, course, report)
+    local path = Wizard.courseConfigPath(draft, course.slug)
+    local status, extra = writeJsonSafely(
+        path,
+        courseJsonFromDraft(course),
+        true
+    )
+
+    return recordStatus(report, status, path, extra)
+end
+
+local function provisionCourseReferences(draft, course, report)
+    local root = Wizard.courseRoot(draft, course.slug)
+    local exportPath = root .. "/references/references.bib"
+    local configuredKey = course.zotero and course.zotero.collectionKey or nil
+
+    local result, err = References.provisionCourse({
+        semesterName = draft.semester.name,
+        courseName = course.name,
+        collectionKey = configuredKey,
+        exportPath = exportPath,
+        zoteroBundleId = draft.globalConfig.zoteroBundleId,
+    })
+
+    if not result then
+        addReport(
+            report,
+            "errors",
+            "Zotero provisioning for " .. course.name .. ": " .. tostring(err)
+        )
+        return false
+    end
+
+    course.zotero = {
+        collectionKey = result.collectionKey,
+        bookItemKey = course.zotero and course.zotero.bookItemKey or nil,
+    }
+
+    addReport(
+        report,
+        result.reused and "existing" or "created",
+        string.format(
+            "Zotero collection %s/%s [%s]",
+            draft.semester.name,
+            course.name,
+            result.collectionKey
+        )
+    )
+
+    addReport(
+        report,
+        result.reused and "updated" or "created",
+        "Better BibLaTeX auto-export -> " .. exportPath
+    )
+
+    -- Persist stable identity before waiting on the derived export so a
+    -- failed/slow BBT verification can be resumed safely on the next run.
+    if not writeProvisionedCourseConfig(draft, course, report) then
+        return false
+    end
+
+    local exportReady, exportErr = References.waitForExportFile(exportPath)
+
+    if not exportReady then
+        addReport(
+            report,
+            "errors",
+            "Bibliography export for " .. course.name .. ": " .. tostring(exportErr)
+        )
+        return false
+    end
+
+    addReport(report, "existing", "Verified bibliography export -> " .. exportPath)
+    return true
+end
+
+local function preflightZotero(draft)
+    local universityRoot = draft.globalConfig
+        and draft.globalConfig.universityRoot
+        or nil
+
+    if not universityRoot
+        or hs.fs.attributes(universityRoot, "mode") ~= "directory" then
+
+        return nil,
+            "University root does not exist or is not a directory:\n"
+                .. tostring(universityRoot)
+    end
+
+    local needsTextbookHelper = false
+
+    for _, course in ipairs(draft.courses or {}) do
+        if course.book
+            and course.book.source
+            and trim(course.book.source) ~= "" then
+
+            needsTextbookHelper = true
+            break
+        end
+    end
+
+    return References.preflight({
+        zoteroBundleId = draft.globalConfig.zoteroBundleId,
+        requireTextbookHelper = needsTextbookHelper,
+    })
+end
+
+
+local function provisionCourseTextbook(draft, course, report)
+    if not course.book
+        or not course.book.source
+        or trim(course.book.source) == "" then
+
+        return true
+    end
+
+    if not course.zotero
+        or not course.zotero.collectionKey then
+
+        addReport(
+            report,
+            "errors",
+            "Cannot provision textbook for "
+                .. course.name
+                .. " without a stable Zotero collectionKey."
+        )
+        return false
+    end
+
+    local root = Wizard.courseRoot(draft, course.slug)
+    local bookPath = root .. "/literature/book.pdf"
+    local exportPath = root .. "/references/references.bib"
+    local metadata = course.book.metadata or {}
+
+    local result, err = References.provisionTextbook({
+        collectionKey = course.zotero.collectionKey,
+        bookItemKey = course.zotero.bookItemKey,
+        bookPath = bookPath,
+        exportPath = exportPath,
+        metadata = metadata,
+    })
+
+    if not result then
+        addReport(
+            report,
+            "errors",
+            "Textbook Zotero provisioning for "
+                .. course.name
+                .. ": "
+                .. tostring(err)
+        )
+        return false
+    end
+
+    course.zotero.bookItemKey = result.bookItemKey
+
+    addReport(
+        report,
+        result.reused and "existing" or "created",
+        string.format(
+            "Zotero Book %s [%s] -> %s",
+            course.name,
+            result.bookItemKey,
+            result.citationKey
+        )
+    )
+
+    addReport(
+        report,
+        result.attachmentReused and "existing" or "created",
+        "Linked textbook attachment -> " .. bookPath
+    )
+
+    if not writeProvisionedCourseConfig(draft, course, report) then
+        return false
+    end
+
+    return true
+end
+
+
+local function validateCourseReferenceSetup(draft, course, report)
+    local root = Wizard.courseRoot(draft, course.slug)
+    local exportPath = root .. "/references/references.bib"
+    local collectionKey = course.zotero and course.zotero.collectionKey or nil
+
+    if not collectionKey then
+        addReport(report, "errors", "Reference validation for " .. course.name .. ": missing collectionKey")
+        return false
+    end
+
+    local collection, collectionErr = References.collection(course)
+
+    if not collection then
+        addReport(
+            report,
+            "errors",
+            "Reference validation for " .. course.name .. ": " .. tostring(collectionErr)
+        )
+        return false
+    end
+
+    if hs.fs.attributes(exportPath, "mode") ~= "file" then
+        addReport(
+            report,
+            "errors",
+            "Reference validation for " .. course.name .. ": bibliography export is missing: " .. exportPath
+        )
+        return false
+    end
+
+    local hasBook = course.book
+        and course.book.source
+        and trim(course.book.source) ~= ""
+
+    if hasBook then
+        local bookItemKey = course.zotero.bookItemKey
+
+        if not bookItemKey then
+            addReport(report, "errors", "Reference validation for " .. course.name .. ": missing bookItemKey")
+            return false
+        end
+
+        local item, itemErr = References.item(bookItemKey)
+
+        if not item then
+            addReport(
+                report,
+                "errors",
+                "Reference validation for " .. course.name .. ": " .. tostring(itemErr)
+            )
+            return false
+        end
+
+        local data = type(item.data) == "table" and item.data or item
+
+        if data.itemType ~= "book" then
+            addReport(
+                report,
+                "errors",
+                "Reference validation for " .. course.name .. ": configured bookItemKey is not a Zotero Book"
+            )
+            return false
+        end
+
+        local member = false
+
+        for _, key in ipairs(type(data.collections) == "table" and data.collections or {}) do
+            if key == collectionKey then
+                member = true
+                break
+            end
+        end
+
+        if not member then
+            addReport(
+                report,
+                "errors",
+                "Reference validation for " .. course.name .. ": textbook is not in the stable course collection"
+            )
+            return false
+        end
+
+        local pdf, pdfErr = References.resolvePdfAttachment(bookItemKey)
+
+        if not pdf then
+            addReport(
+                report,
+                "errors",
+                "Reference validation for " .. course.name .. ": textbook linked PDF is unavailable: " .. tostring(pdfErr)
+            )
+            return false
+        end
+    end
+
+    addReport(
+        report,
+        "existing",
+        "Validated Zotero/reference setup for " .. course.name .. " [" .. tostring(collectionKey) .. "]"
+    )
+    return true
+end
+
 
 local function writeConfiguration(draft, report)
     local configDirectories = {
@@ -1681,6 +2130,27 @@ local function scaffoldCourse(
         end
     end
 
+    local referencesIgnorePath = root .. "/references/.gitignore"
+
+    if pathExists(referencesIgnorePath) then
+        addReport(report, "existing", referencesIgnorePath .. " (preserved)")
+    else
+        local ignoreContents = table.concat({
+            "# External research PDFs are owned by Zotero, not the course repository.",
+            "*.pdf",
+            "*.PDF",
+            "",
+        }, "\n")
+        local ignored, ignoreErr = atomicWrite(referencesIgnorePath, ignoreContents, false)
+
+        if not ignored then
+            addReport(report, "errors", referencesIgnorePath .. ": " .. tostring(ignoreErr))
+            return false
+        end
+
+        addReport(report, "created", referencesIgnorePath)
+    end
+
     local masterPath =
         root .. "/notes/master.tex"
 
@@ -1802,10 +2272,11 @@ local function createBookSymlink(
         else
             addReport(
                 report,
-                "skipped",
+                "errors",
                 linkPath
                     .. " — existing symlink points elsewhere"
             )
+            return false
         end
 
         return true
@@ -1814,12 +2285,12 @@ local function createBookSymlink(
     if hs.fs.attributes(linkPath) then
         addReport(
             report,
-            "skipped",
+            "errors",
             linkPath
-                .. " — existing file preserved"
+                .. " — expected textbook symlink but found an existing file"
         )
 
-        return true
+        return false
     end
 
     local ok, err =
@@ -1883,6 +2354,39 @@ function Wizard.commit(draft)
         return nil
     end
 
+    local identityOK, identityErr =
+        hydrateExistingZoteroIdentity(draft)
+
+    if not identityOK then
+        showError(
+            "Cannot safely provision Zotero:\n\n"
+                .. tostring(identityErr)
+        )
+        return nil
+    end
+
+    local zoteroReady, zoteroErr =
+        preflightZotero(draft)
+
+    if not zoteroReady then
+        showError(
+            "Cannot safely provision Zotero:\n\n"
+                .. tostring(zoteroErr)
+        )
+        return nil
+    end
+
+    local metadataOK, metadataErr =
+        collectMissingBookMetadata(draft)
+
+    if not metadataOK then
+        showError(
+            "Cannot provision course textbook:\n\n"
+                .. tostring(metadataErr)
+        )
+        return nil
+    end
+
     local report =
         newReport()
 
@@ -1911,11 +2415,35 @@ function Wizard.commit(draft)
             )
 
         if scaffoldOK then
-            createBookSymlink(
+            local bookOK = createBookSymlink(
                 draft,
                 course,
                 report
             )
+
+            if bookOK then
+                local referencesOK = provisionCourseReferences(
+                    draft,
+                    course,
+                    report
+                )
+
+                if referencesOK then
+                    local textbookOK = provisionCourseTextbook(
+                        draft,
+                        course,
+                        report
+                    )
+
+                    if textbookOK then
+                        validateCourseReferenceSetup(
+                            draft,
+                            course,
+                            report
+                        )
+                    end
+                end
+            end
         end
     end
 

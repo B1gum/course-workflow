@@ -34,6 +34,13 @@ local EXPECTED_ACTIONS = {
     "openLiterature",
     "openLiteratureFolder",
     "openReferences",
+    "searchReferences",
+    "searchAllReferences",
+    "openReference",
+    "openZoteroItem",
+    "openCitedPage",
+    "saveReference",
+    "saveReferenceUnfiled",
     "openReferencesFolder",
     "openCoursePage",
     "compileCurrent",
@@ -746,7 +753,7 @@ local function runCases(courseA, courseB)
         assertEqual(opened, false, "missing-literature did not open")
     end)
 
-    case("literature and references folders open their derived directories", function()
+    case("literature and references folder actions remain explicit filesystem routes", function()
         local opened = {}
         local runtime = {
             timetableContext = false,
@@ -767,7 +774,7 @@ local function runCases(courseA, courseB)
             { course = courseB.id },
             runtime
         )
-        local references, referencesErr = Actions.openReferences(
+        local references, referencesErr = Actions.openReferencesFolder(
             { course = courseB.id },
             runtime
         )

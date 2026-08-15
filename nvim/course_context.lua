@@ -1,5 +1,29 @@
 local M = {}
 
+-- Reference commands/keymaps are independent of whether this Neovim instance
+-- has a usable terminal/TTY for the Hammerspoon focus bridge. Register them
+-- before any bridge-specific early return so :References and <leader>r* are
+-- available in every normal Neovim session.
+local function setupReferences()
+    local ok, references = pcall(require, "course-references")
+
+    if not ok then
+        vim.schedule(function()
+            vim.notify(
+                "Course references failed to load: " .. tostring(references),
+                vim.log.levels.ERROR
+            )
+        end)
+        return
+    end
+
+    if type(references.setup) == "function" then
+        references.setup()
+    end
+end
+
+setupReferences()
+
 local stateDir = vim.fn.expand(
     "~/.local/state/course-workflow/nvim"
 )

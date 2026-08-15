@@ -3,5 +3,6 @@
   "skimBundleId": "net.sourceforge.skim-app.skim",
   "itermBundleId": "com.googlecode.iterm2",
   "safariBundleId": "com.apple.Safari",
+  "zoteroBundleId": "org.zotero.zotero",
   "matlabBundleId": "com.mathworks.matlab"
 }

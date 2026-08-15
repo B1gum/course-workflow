@@ -8,6 +8,9 @@ local Util = require("course.util")
 local Lectures = require("course.lectures")
 local LaTeX = require("course.latex")
 local Figures = require("course.figures")
+local References = require("course.references")
+local ReferenceChooser = require("course.reference_chooser")
+local ReferenceCapture = require("course.reference_capture")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
@@ -150,13 +153,49 @@ Actions.SPEC = {
         requirements = { course = true },
     },
     openReferences = {
-        part = "XIV",
+        part = "XIII",
         implemented = true,
         context = true,
         requirements = { course = true },
     },
+    searchReferences = {
+        part = "XIII",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    searchAllReferences = {
+        part = "XIII",
+        implemented = true,
+        context = false,
+    },
+    openReference = {
+        part = "XII",
+        implemented = true,
+        context = false,
+    },
+    openZoteroItem = {
+        part = "XII",
+        implemented = true,
+        context = false,
+    },
+    openCitedPage = {
+        part = "XVII",
+        implemented = true,
+        context = false,
+    },
+    saveReference = {
+        part = "XVIII",
+        implemented = true,
+        context = false,
+    },
+    saveReferenceUnfiled = {
+        part = "XVIII",
+        implemented = true,
+        context = false,
+    },
     openReferencesFolder = {
-        part = "XVI",
+        part = "XIII",
         implemented = true,
         context = true,
         requirements = { course = true },
@@ -609,17 +648,22 @@ local function runtimeFunction(runtime, key, fallback)
 end
 
 local function workflowGlobalConfig()
-    local snapshot, err = Registry.snapshot()
+    local snapshot, registryErr = Registry.snapshot()
 
-    if not snapshot then
-        return nil, err
+    if snapshot and type(snapshot.global) == "table" then
+        return snapshot.global
     end
 
-    if type(snapshot.global) ~= "table" then
-        return nil, "Loaded workflow configuration has no global settings."
+    -- Global actions such as Search All References do not semantically require
+    -- an active semester. Fall back to the standalone global config when the
+    -- course registry cannot be loaded.
+    local global, globalErr = Config.loadGlobal()
+
+    if global then
+        return global
     end
 
-    return snapshot.global
+    return nil, registryErr or globalErr or "Could not load workflow global settings."
 end
 
 local function appleScriptString(value)
@@ -1132,12 +1176,321 @@ function Actions.openLiteratureFolder(options, runtime)
     )
 end
 
+local function referenceOptions(global)
+    return {
+        zoteroBundleId = global.zoteroBundleId,
+        skimBundleId = global.skimBundleId,
+    }
+end
+
+local function showReferenceResults(result, title, runtime)
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local chooserRuntime = runtimeFunction(
+        runtime,
+        "showReferenceChooser",
+        function(items, options)
+            return ReferenceChooser.show(items, options)
+        end
+    )
+
+    local shown, showErr = chooserRuntime(result.items, {
+        title = title,
+        scope = result.scope,
+        onChoose = function(item)
+            local opened, openErr = References.openReference(
+                item,
+                referenceOptions(global),
+                runtime
+            )
+
+            if not opened then
+                defaultNotify(openErr)
+                return
+            end
+
+            if opened.opened == "zotero" and opened.reason then
+                defaultNotify(opened.reason)
+            end
+        end,
+    })
+
+    if not shown then
+        return nil, showErr
+    end
+
+    result.presented = true
+    return result
+end
+
 function Actions.openReferences(options, runtime)
-    return openCourseDirectory(
+    local context, contextErr = Actions.resolveFor(
         "openReferences",
-        "references",
-        "References folder",
         options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local opened, openErr = References.openCollection(
+        context.course,
+        referenceOptions(global),
+        runtime
+    )
+
+    if not opened then
+        return nil, openErr
+    end
+
+    opened.course = context.course
+    opened.context = context
+    return opened
+end
+
+function Actions.searchReferences(options, runtime)
+    options = options or {}
+
+    local context, contextErr = Actions.resolveFor(
+        "searchReferences",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local items, itemsErr = References.itemsForCourse(
+        context.course,
+        referenceOptions(global),
+        runtime
+    )
+
+    if not items then
+        return nil, itemsErr
+    end
+
+    local result = {
+        scope = "course",
+        course = context.course,
+        context = context,
+        items = items,
+    }
+
+    if options.returnOnly == true then
+        return result
+    end
+
+    return showReferenceResults(
+        result,
+        "Search References · " .. tostring(context.course.shortName or context.course.name),
+        runtime
+    )
+end
+
+function Actions.searchAllReferences(options, runtime)
+    options = options or {}
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local items, itemsErr = References.allItems(
+        referenceOptions(global),
+        runtime
+    )
+
+    if not items then
+        return nil, itemsErr
+    end
+
+    local result = {
+        scope = "all",
+        items = items,
+    }
+
+    if options.returnOnly == true then
+        return result
+    end
+
+    return showReferenceResults(
+        result,
+        "Search All References",
+        runtime
+    )
+end
+
+function Actions.openReference(options, runtime)
+    options = options or {}
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local reference
+    local serviceOptions = referenceOptions(global)
+
+    if Util.isNonEmptyString(options.itemKey) then
+        reference = { itemKey = Util.trim(options.itemKey) }
+    elseif Util.isNonEmptyString(options.citationKey) then
+        reference = Util.trim(options.citationKey)
+        serviceOptions.identity = "citationKey"
+    else
+        return nil, "Open Reference requires itemKey or citationKey."
+    end
+
+    local result, err = References.openReference(
+        reference,
+        serviceOptions,
+        runtime
+    )
+
+    if not result then
+        return nil, err
+    end
+
+    return result
+end
+
+function Actions.openCitedPage(options, runtime)
+    local normalized, optionsErr = normalizeOptions(options)
+
+    if not normalized then
+        return nil, optionsErr
+    end
+
+    options = normalized
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    return References.openCitedPage(
+        options.citationKey,
+        options.page,
+        referenceOptions(global),
+        runtime
+    )
+end
+
+local function browserCaptureOptions(global, context, unfiled)
+    local capture = {
+        zoteroBundleId = global.zoteroBundleId,
+        safariBundleId = global.safariBundleId,
+        unfiled = unfiled == true,
+    }
+
+    if context and context.course and not capture.unfiled then
+        local collectionKey, keyErr = References.collectionKey(context.course)
+
+        if not collectionKey then
+            return nil, keyErr
+        end
+
+        capture.collectionKey = collectionKey
+        capture.courseName = context.course.shortName or context.course.name or context.course.id
+    end
+
+    return capture
+end
+
+function Actions.saveReference(options, runtime)
+    local normalized, optionsErr = normalizeOptions(options)
+
+    if not normalized then
+        return nil, optionsErr
+    end
+
+    options = normalized
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    -- Capture is allowed without course context. Resolve A -> B -> C -> D once;
+    -- a reliable hit assigns the Connector-created item to that exact stable
+    -- collection, while an unresolved/ambiguous implicit context deliberately
+    -- falls back to Zotero Unfiled without prompting. An explicit course is a
+    -- user instruction, so an invalid explicit course remains an error.
+    local context, contextErr = Context.resolve(options, runtime)
+
+    if not context and options.course ~= nil then
+        return nil, contextErr or Context.ERROR.NO_COURSE
+    end
+
+    local capture, captureErr = browserCaptureOptions(global, context, context == nil)
+
+    if not capture then
+        return nil, captureErr
+    end
+
+    local result, err = ReferenceCapture.start(capture, runtime)
+
+    if not result then
+        return nil, err
+    end
+
+    result.context = context
+    result.contextFallbackError = context and nil or contextErr
+    return result
+end
+
+function Actions.saveReferenceUnfiled(_, runtime)
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local capture, captureErr = browserCaptureOptions(global, nil, true)
+
+    if not capture then
+        return nil, captureErr
+    end
+
+    return ReferenceCapture.start(capture, runtime)
+end
+
+function Actions.openZoteroItem(options, runtime)
+    options = options or {}
+
+    if not Util.isNonEmptyString(options.itemKey) then
+        return nil, "Open Zotero Item requires itemKey."
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    return References.openItem(
+        Util.trim(options.itemKey),
+        referenceOptions(global),
         runtime
     )
 end

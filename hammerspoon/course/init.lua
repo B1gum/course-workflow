@@ -12,8 +12,16 @@ CourseWorkflow.Menubar = require("course.menubar")
 CourseWorkflow.Hotkeys = require("course.hotkeys")
 CourseWorkflow.LaTeX = require("course.latex")
 CourseWorkflow.Figures = require("course.figures")
+CourseWorkflow.References = require("course.references")
+CourseWorkflow.ReferenceServer = require("course.reference_server")
+CourseWorkflow.ReferenceChooser = require("course.reference_chooser")
 
 function CourseWorkflow.start()
+    -- Neovim talks to the central Hammerspoon reference service over a
+    -- loopback-only HTTP endpoint. Starting it here keeps Zotero/context logic
+    -- in one place and avoids a second reference database in the editor.
+    CourseWorkflow.ReferenceServer.start()
+
     -- Frontends stay available even before a semester has been selected so the
     -- management routes can bootstrap the workflow. Each frontend owns its
     -- lifecycle and start() first removes any previous long-lived objects.
@@ -58,6 +66,8 @@ end
 
 function CourseWorkflow.stop()
     CourseWorkflow.LaTeX.stopAll()
+    CourseWorkflow.ReferenceChooser.stop()
+    CourseWorkflow.ReferenceServer.stop()
     CourseWorkflow.Hotkeys.stop()
     CourseWorkflow.Menubar.stop()
     CourseWorkflow.Launcher.stop()
