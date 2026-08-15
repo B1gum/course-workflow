@@ -12,7 +12,7 @@ Context.LEVEL = {
     PATH = "B",
     MANUAL = "C",
     TIMETABLE = "D",
-    -- Backwards-compatible alias for older callers/tests.
+    -- Backwards-compatible alias for older callers.
     CALENDAR = "D",
 }
 
@@ -606,7 +606,7 @@ end
 function Context.resolvePathContext(options)
     options = options or {}
 
-    -- Useful for tests and future callers that already possess
+    -- Useful for future callers that already possess
     -- an authoritative filesystem path.
     if options.path ~= nil then
         return Context.resolvePath(

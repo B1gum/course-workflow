@@ -108,7 +108,7 @@ function State.setTimetableAutoSwitchEnabled(enabled)
     return true
 end
 
--- Compatibility aliases for old init.lua/tests/custom bindings. New code must
+-- Compatibility aliases for older init.lua/custom bindings. New code must
 -- use the timetable names; no Calendar.app access remains anywhere in Level D.
 State.getCalendarAutoSwitchEnabled = State.getTimetableAutoSwitchEnabled
 State.setCalendarAutoSwitchEnabled = State.setTimetableAutoSwitchEnabled
