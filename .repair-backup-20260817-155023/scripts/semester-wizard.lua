@@ -1,8 +1,6 @@
 local Wizard = {}
 
 local References = require("course.references")
-local Timetable = require("course.timetable")
-local Util = require("course.util")
 
 local HOME = os.getenv("HOME")
 
@@ -352,53 +350,234 @@ local function validateCourseUrl(url)
 end
 
 
-local function chooseOptionalBook(courseName)
-    while true do
-        local choice = hs.dialog.blockAlert(
-            "Textbook — " .. courseName,
-            "Does this course have a textbook PDF?",
-            "Choose PDF",
-            "No textbook"
+local TIMETABLE_DAY_ALIASES = {
+    mon = "monday",
+    monday = "monday",
+    man = "monday",
+    mandag = "monday",
+
+    tue = "tuesday",
+    tues = "tuesday",
+    tuesday = "tuesday",
+    tir = "tuesday",
+    tirsdag = "tuesday",
+
+    wed = "wednesday",
+    wednesday = "wednesday",
+    ons = "wednesday",
+    onsdag = "wednesday",
+
+    thu = "thursday",
+    thur = "thursday",
+    thurs = "thursday",
+    thursday = "thursday",
+    tor = "thursday",
+    torsdag = "thursday",
+
+    fri = "friday",
+    friday = "friday",
+    fre = "friday",
+    fredag = "friday",
+
+    sat = "saturday",
+    saturday = "saturday",
+    lor = "saturday",
+    lordag = "saturday",
+
+    sun = "sunday",
+    sunday = "sunday",
+    son = "sunday",
+    sondag = "sunday",
+}
+
+local TIMETABLE_BOUNDARIES = {
+    [8] = true,
+    [10] = true,
+    [12] = true,
+    [14] = true,
+    [16] = true,
+}
+
+local function parseTimetable(value)
+    local slots = {}
+    value = trim(value or "")
+
+    if value == "" then
+        return slots
+    end
+
+    local byDay = {}
+
+    for rawSlot in value:gmatch("[^;]+") do
+        rawSlot = trim(rawSlot)
+
+        local rawDay, rawStart, rawEnd = rawSlot:match(
+            "^(%a+)%s+(%d%d?)%s*%-%s*(%d%d?)$"
         )
+
+        if not rawDay then
+            return nil,
+                'Invalid timetable slot "'
+                    .. rawSlot
+                    .. '". Use e.g. "Mon 12-16; Thu 8-10".'
+        end
+
+        local day = TIMETABLE_DAY_ALIASES[rawDay:lower()]
+
+        if not day then
+            return nil, 'Unknown timetable day "' .. rawDay .. '".'
+        end
+
+        local startHour = tonumber(rawStart)
+        local endHour = tonumber(rawEnd)
+
+        if not TIMETABLE_BOUNDARIES[startHour]
+            or not TIMETABLE_BOUNDARIES[endHour] then
+
+            return nil,
+                "Timetable boundaries must be one of 8, 10, 12, 14, or 16."
+        end
+
+        local duration = endHour - startHour
+
+        if duration ~= 2 and duration ~= 4 then
+            return nil,
+                "Each class must last exactly 2 or 4 hours."
+        end
+
+        byDay[day] = byDay[day] or {}
+
+        for _, existing in ipairs(byDay[day]) do
+            if startHour < existing["end"]
+                and endHour > existing.start then
+
+                return nil,
+                    "Timetable slots for "
+                        .. day
+                        .. " overlap."
+            end
+        end
+
+        local slot = {
+            day = day,
+            start = startHour,
+            ["end"] = endHour,
+        }
+
+        table.insert(byDay[day], slot)
+        table.insert(slots, slot)
+    end
+
+    return slots
+end
+
+local function validateTimetableAgainstCourses(
+    timetable,
+    existingCourses,
+    courseName
+)
+    for _, slot in ipairs(timetable or {}) do
+        for _, existingCourse in ipairs(existingCourses or {}) do
+            for _, existing in ipairs(existingCourse.timetable or {}) do
+                if slot.day == existing.day
+                    and slot.start < existing["end"]
+                    and slot["end"] > existing.start then
+
+                    return nil,
+                        string.format(
+                            'Timetable conflict: %s %02d-%02d overlaps %s %02d-%02d on %s.',
+                            courseName,
+                            slot.start,
+                            slot["end"],
+                            existingCourse.name,
+                            existing.start,
+                            existing["end"],
+                            slot.day
+                        )
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+local TIMETABLE_DAY_LABELS = {
+    monday = "Mon",
+    tuesday = "Tue",
+    wednesday = "Wed",
+    thursday = "Thu",
+    friday = "Fri",
+    saturday = "Sat",
+    sunday = "Sun",
+}
+
+local function formatTimetable(timetable)
+    if type(timetable) ~= "table" or #timetable == 0 then
+        return "None"
+    end
+
+    local parts = {}
+
+    for _, slot in ipairs(timetable) do
+        table.insert(
+            parts,
+            string.format(
+                "%s %02d-%02d",
+                TIMETABLE_DAY_LABELS[slot.day] or slot.day,
+                slot.start,
+                slot["end"]
+            )
+        )
+    end
+
+    return table.concat(parts, "; ")
+end
+
+
+local function chooseOptionalBook(
+    courseName
+)
+    while true do
+        local choice =
+            hs.dialog.blockAlert(
+                "Textbook — " .. courseName,
+                "Does this course have a textbook PDF?",
+                "Choose PDF",
+                "No textbook"
+            )
 
         if choice == "No textbook" then
             return nil
         end
 
-        local result = hs.dialog.chooseFileOrFolder(
-            "Choose textbook PDF for " .. courseName,
-            HOME .. "/Documents",
-            true,
-            false,
-            false,
-            { "pdf" },
-            true
-        )
+        local result =
+            hs.dialog.chooseFileOrFolder(
+                "Choose textbook PDF for "
+                    .. courseName,
 
-        local path = Util.selectedFilePath(result)
+                HOME .. "/Documents",
 
-        if path then
-            path = hs.fs.pathToAbsolute(path) or path
+                true,   -- files
+                false,  -- directories
+                false,  -- multiple selection
 
-            if hs.fs.attributes(path, "mode") == "file" then
-                return path
-            end
+                { "pdf" },
 
-            showError("The selected textbook is not a readable file:\n\n" .. tostring(path))
-        else
-            local cancelledChoice = hs.dialog.blockAlert(
-                "Textbook — " .. courseName,
-                "No PDF was selected.",
-                "Choose Again",
-                "No textbook"
+                true    -- resolve aliases
             )
 
-            if cancelledChoice == "No textbook" then
-                return nil
-            end
+        if result
+            and result[1] then
+
+            return result[1]
         end
+
+        -- Cancelling the file chooser returns here,
+        -- rather than cancelling the whole semester wizard.
     end
 end
+
 
 local function defaultBookTitle(bookSource)
     local filename = tostring(bookSource or ""):match("([^/]+)$") or ""
@@ -608,33 +787,23 @@ local function collectOneCourse(
         end
 
         local timetableError
-        timetable, timetableError = Timetable.parse(timetableText)
+        timetable, timetableError = parseTimetable(timetableText)
 
         if timetable then
-            local conflicts = Timetable.conflicts(
+            local conflictOk, conflictErr = validateTimetableAgainstCourses(
                 timetable,
                 draft.courses,
-                nil
+                name
             )
 
-            if #conflicts == 0 then
+            if conflictOk then
                 break
             end
 
-            local choice = hs.dialog.blockAlert(
-                "Timetable conflict — " .. name,
-                "This overlap is allowed. During the overlap, timetable-only context will refuse to guess which course is active.\n\n"
-                    .. tostring(Timetable.conflictSummary(conflicts, name)),
-                "Keep Conflict",
-                "Edit Timetable"
-            )
-
-            if choice == "Keep Conflict" then
-                break
-            end
-        else
-            showError(timetableError)
+            timetableError = conflictErr
         end
+
+        showError(timetableError)
     end
 
     local course = {
@@ -825,7 +994,7 @@ local function buildSemesterPreview(draft)
         table.insert(
             lines,
             "Timetable: "
-                .. (Timetable.format(course.timetable) ~= "" and Timetable.format(course.timetable) or "None")
+                .. formatTimetable(course.timetable)
         )
 
         table.insert(lines, "")

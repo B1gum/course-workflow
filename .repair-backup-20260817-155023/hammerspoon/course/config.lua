@@ -385,6 +385,39 @@ function Config.loadGlobal()
     return global
 end
 
+local function validateCourseTimetableConflicts(courses)
+    local occupied = {}
+
+    for _, course in ipairs(courses or {}) do
+        for _, slot in ipairs(course.timetable or {}) do
+            occupied[slot.day] = occupied[slot.day] or {}
+
+            for _, existing in ipairs(occupied[slot.day]) do
+                if slot.start < existing.slot["end"]
+                    and slot["end"] > existing.slot.start then
+
+                    return nil, string.format(
+                        'Timetable conflict on %s: "%s" %02d-%02d overlaps "%s" %02d-%02d.',
+                        slot.day,
+                        existing.course.name,
+                        existing.slot.start,
+                        existing.slot["end"],
+                        course.name,
+                        slot.start,
+                        slot["end"]
+                    )
+                end
+            end
+
+            table.insert(occupied[slot.day], {
+                course = course,
+                slot = slot,
+            })
+        end
+    end
+
+    return true
+end
 
 function Config.loadSemester(semesterId)
     if not Util.isNonEmptyString(semesterId) then
@@ -447,6 +480,12 @@ function Config.loadSemester(semesterId)
 
         table.insert(courses, course)
         coursesById[course.id] = course
+    end
+
+    local timetableOk, timetableErr = validateCourseTimetableConflicts(courses)
+
+    if not timetableOk then
+        return nil, timetableErr
     end
 
     return {

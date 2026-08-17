@@ -1,0 +1,22 @@
+{
+  "zotero" : {
+    "collectionKey" : "ZB86III7",
+    "bookItemKey" : "DIFFM7MI"
+  },
+  "slug" : "kompositmaterialer",
+  "shortName" : "Kompositmaterialer",
+  "id" : "kompositmaterialer",
+  "code" : "29016PU022",
+  "timetable" : [
+    {
+      "day" : "tuesday",
+      "start" : 14,
+      "end" : 16
+    }
+  ],
+  "book" : {
+    "source" : "\/Users\/noahhansen\/Desktop\/Books\/Uni\/Bachelor\/5_Semester_Books\/kompositmaterialer\/feismo.com-mechanics-of-composite-materials-second-edition-pr_cf98773714eedf0ec9808b2dedef3f3f.pdf"
+  },
+  "courseUrl" : "https:\/\/brightspace.au.dk\/d2l\/home\/219671",
+  "name" : "Kompositmaterialer"
+}

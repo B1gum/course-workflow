@@ -1,0 +1,11 @@
+{
+  "id" : "sem5",
+  "courses" : [
+    "finite-element-og-mekanismeanalyse",
+    "udviklingsprojekt",
+    "varmetransmission",
+    "fremstillingsprocesser",
+    "kompositmaterialer"
+  ],
+  "name" : "Semester 5"
+}

@@ -738,9 +738,9 @@ function Context.currentTimetableContext(runtime)
         table.sort(ids)
 
         return nil,
-            "Timetable context is ambiguous: "
+            "Multiple configured timetable courses are active: "
                 .. table.concat(ids, ", ")
-                .. " are active at the same time. Choose a course explicitly or use path/manual context."
+                .. "."
     end
 
     local slotKeys = {}

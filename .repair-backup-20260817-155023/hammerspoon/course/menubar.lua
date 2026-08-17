@@ -171,26 +171,6 @@ function Menubar.invoke(actionName, options)
         notify("Active semester · " .. tostring(result.name or result.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
-    elseif actionName == "repairSemesterReferences" then
-        if result.cancelled == true then
-            return result
-        end
-
-        local repaired = #(result.repaired or {})
-        local errors = result.errors or {}
-
-        if #errors == 0 then
-            notify("Semester references repaired · " .. tostring(repaired) .. " courses")
-        else
-            notify(
-                "Reference repair completed with errors · "
-                    .. tostring(repaired)
-                    .. " repaired · "
-                    .. table.concat(errors, " | ")
-            )
-        end
-    elseif actionName == "editCourse" then
-        -- The editor opens its own chooser and owns field-level notifications.
     elseif actionName == "setTextbook" then
         if result.cancelled ~= true then
             notify(
@@ -417,7 +397,6 @@ function Menubar.buildMenu(context, contextErr)
         table.insert(menu, { title = "-" })
 
         table.insert(menu, actionItem("Launch Course", "launchCourse", courseOptions))
-        table.insert(menu, actionItem("Edit Course…", "editCourse", courseOptions))
         table.insert(menu, { title = "Notes", menu = notesMenu(context) })
         table.insert(menu, { title = "Assignments", menu = assignmentsMenu(context) })
         table.insert(menu, { title = "Figures", menu = figuresMenu(context) })
@@ -465,15 +444,6 @@ function Menubar.buildMenu(context, contextErr)
             Menubar.invoke("newSemester", nil)
         end,
     })
-
-    table.insert(
-        menu,
-        actionItem(
-            "Repair Semester References…",
-            "repairSemesterReferences",
-            nil
-        )
-    )
 
     table.insert(
         menu,

@@ -561,51 +561,13 @@ local function childrenNamed(collections, parentKey, name)
     return matches
 end
 
-function References.personalLibraryID(runtime)
-    local libraries, err = References.rpc(
-        "user.groups",
-        { false },
-        runtime
-    )
-
-    if type(libraries) ~= "table" then
-        return nil,
-            "Better BibTeX could not enumerate Zotero libraries: "
-                .. tostring(err or "invalid user.groups response")
-    end
-
-    -- Better BibTeX implements user.groups() by mapping Zotero.Libraries.getAll().
-    -- Zotero orders that list with the personal library first, followed by the
-    -- remaining libraries by name. Use the first valid entry rather than
-    -- assuming that a specific numeric library ID is globally fixed.
-    for _, library in ipairs(libraries) do
-        local id = type(library) == "table" and tonumber(library.id) or nil
-
-        if id and id > 0 and id % 1 == 0 then
-            return id
-        end
-    end
-
-    return nil, "Better BibTeX returned no usable personal Zotero library ID."
-end
-
-local function collectionPath(semesterName, courseName, libraryID)
+local function collectionPath(semesterName, courseName)
     if semesterName:find("/", 1, true) or courseName:find("/", 1, true) then
         return nil,
             "Zotero collection names used by the wizard may not contain '/'. Rename the semester/course display name or create the collection manually."
     end
 
-    libraryID = tonumber(libraryID)
-
-    if not libraryID or libraryID < 1 or libraryID % 1 ~= 0 then
-        return nil, "Zotero provisioning requires a valid personal library ID."
-    end
-
-    -- Better BibTeX documents // as the personal-library shorthand, but recent
-    -- releases resolve the empty library segment as a literal empty lookup and
-    -- can fail with "Library  not found". An explicit library ID is stable
-    -- across locales and avoids that resolver ambiguity.
-    return "/" .. tostring(libraryID) .. "/" .. semesterName .. "/" .. courseName
+    return "//" .. semesterName .. "/" .. courseName
 end
 
 local function verifyConfiguredCollection(collections, collectionKey, semesterName, courseName)
@@ -729,6 +691,12 @@ function References.provisionCourse(options, runtime)
     courseName = Util.trim(courseName)
     exportPath = Util.normalizePath(exportPath) or Util.trim(exportPath)
 
+    local path, pathErr = collectionPath(semesterName, courseName)
+
+    if not path then
+        return nil, pathErr
+    end
+
     local exportParent = exportPath:match("^(.*)/[^/]+$")
 
     if not exportParent or hs.fs.attributes(exportParent, "mode") ~= "directory" then
@@ -741,18 +709,6 @@ function References.provisionCourse(options, runtime)
 
     if readyErr then
         return nil, readyErr
-    end
-
-    local libraryID, libraryErr = References.personalLibraryID(runtime)
-
-    if not libraryID then
-        return nil, libraryErr
-    end
-
-    local path, pathErr = collectionPath(semesterName, courseName, libraryID)
-
-    if not path then
-        return nil, pathErr
     end
 
     local collections, collectionsErr = References.collections(runtime)

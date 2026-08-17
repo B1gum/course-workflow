@@ -11,7 +11,7 @@ local Figures = require("course.figures")
 local References = require("course.references")
 local ReferenceChooser = require("course.reference_chooser")
 local ReferenceCapture = require("course.reference_capture")
-local Editor = require("course.editor")
+local Textbook = require("course.textbook")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
@@ -30,12 +30,6 @@ Actions.SPEC = {
         context = true,
         requirements = { course = true },
     },
-    editCourse = {
-        part = "VII",
-        implemented = true,
-        context = true,
-        requirements = { course = true },
-    },
     newSemester = {
         part = "VII",
         implemented = true,
@@ -43,11 +37,6 @@ Actions.SPEC = {
     },
     reloadConfiguration = {
         part = "VII",
-        implemented = true,
-        context = false,
-    },
-    repairSemesterReferences = {
-        part = "XXI",
         implemented = true,
         context = false,
     },
@@ -525,24 +514,6 @@ function Actions.setActiveCourse(value, runtime)
     end
 
     return Context.activateManualCourse(courseReference, runtime)
-end
-
-function Actions.editCourse(options, runtime)
-    local context, contextErr = Actions.resolveFor(
-        "editCourse",
-        options,
-        runtime
-    )
-
-    if not context then
-        return nil, contextErr
-    end
-
-    return Editor.show(context.course, options, runtime)
-end
-
-function Actions.repairSemesterReferences(options, runtime)
-    return Editor.repairSemesterReferences(options, runtime)
 end
 
 local function loadSemesterWizard(runtime)
@@ -1213,11 +1184,40 @@ function Actions.setTextbook(options, runtime)
         return nil, contextErr
     end
 
-    return Editor.setTextbook(
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local textbookOptions = shallowCopy(options)
+    textbookOptions.global = global
+
+    local result, textbookErr = Textbook.set(
         context.course,
-        shallowCopy(options),
+        textbookOptions,
         runtime
     )
+
+    if not result then
+        return nil, textbookErr
+    end
+
+    if result.cancelled == true then
+        return result
+    end
+
+    local reloaded, reloadErr = Registry.reload()
+
+    if not reloaded then
+        return nil,
+            "Textbook was updated, but course configuration could not be reloaded: "
+                .. tostring(reloadErr)
+    end
+
+    local refreshed = Registry.getCourse(context.course.id)
+    result.course = refreshed or context.course
+    return result
 end
 
 function Actions.openLiteratureFolder(options, runtime)

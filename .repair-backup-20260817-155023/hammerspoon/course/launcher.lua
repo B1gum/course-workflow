@@ -260,7 +260,6 @@ function Launcher.buildRootChoices(context)
         )
 
         table.insert(choices, actionChoice("Launch Course", "launchCourse", courseOptions))
-        table.insert(choices, actionChoice("Edit Course…", "editCourse", courseOptions))
         table.insert(choices, actionChoice("Open Notes", "openNotes", courseOptions))
         table.insert(choices, actionChoice("New Lecture", "newLecture", courseOptions))
         table.insert(choices, actionChoice("New Figure", "newFigure", activeOptions))
@@ -346,12 +345,6 @@ function Launcher.buildRootChoices(context)
         )
     )
     table.insert(choices, actionChoice("New Semester", "newSemester", nil))
-    table.insert(choices, actionChoice(
-        "Repair Semester References…",
-        "repairSemesterReferences",
-        nil,
-        "Re-provision Zotero collections and Better BibLaTeX exports in place"
-    ))
     table.insert(choices, actionChoice("Reload Configuration", "reloadConfiguration", nil))
 
     local timetableEnabled = State.getTimetableAutoSwitchEnabled()
@@ -423,7 +416,6 @@ function Launcher.buildCourseChoices(course)
 
     table.insert(choices, actionChoice("Set Active Course", "setActiveCourse", courseOptions))
     table.insert(choices, actionChoice("Launch Course", "launchCourse", courseOptions))
-    table.insert(choices, actionChoice("Edit Course…", "editCourse", courseOptions))
 
     table.insert(choices, header("NOTES", nil))
     table.insert(choices, actionChoice("Open Notes", "openNotes", courseOptions))
@@ -469,7 +461,6 @@ end
 local ACTION_FIRST = {
     { text = "Set Active Course", action = "setActiveCourse" },
     { text = "Launch Course", action = "launchCourse" },
-    { text = "Edit Course…", action = "editCourse" },
     { text = "Open Notes", action = "openNotes" },
     { text = "New Lecture", action = "newLecture" },
     { text = "Choose Lecture", action = "chooseLecture" },
@@ -701,26 +692,6 @@ local function invoke(actionName, options)
         notify("Active course · " .. (course.shortName or course.name or course.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
-    elseif actionName == "repairSemesterReferences" then
-        if result.cancelled == true then
-            return result
-        end
-
-        local repaired = #(result.repaired or {})
-        local errors = result.errors or {}
-
-        if #errors == 0 then
-            notify("Semester references repaired · " .. tostring(repaired) .. " courses")
-        else
-            notify(
-                "Reference repair completed with errors · "
-                    .. tostring(repaired)
-                    .. " repaired · "
-                    .. table.concat(errors, " | ")
-            )
-        end
-    elseif actionName == "editCourse" then
-        -- The editor opens its own chooser and owns field-level notifications.
     elseif actionName == "setTextbook" then
         if result.cancelled ~= true then
             local course = result.course

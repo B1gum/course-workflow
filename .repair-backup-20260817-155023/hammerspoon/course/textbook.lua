@@ -49,10 +49,8 @@ local function defaultChoosePdf(course, currentSource)
         true
     )
 
-    local selected = Util.selectedFilePath(result)
-
-    if selected then
-        return hs.fs.pathToAbsolute(selected) or selected
+    if result and result[1] then
+        return result[1]
     end
 
     return nil

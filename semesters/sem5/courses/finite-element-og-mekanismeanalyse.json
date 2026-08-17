@@ -1,0 +1,18 @@
+{
+  "zotero" : {
+    "collectionKey" : "FYJDFKD2"
+  },
+  "slug" : "finite-element-og-mekanismeanalyse",
+  "shortName" : "FEM",
+  "id" : "finite-element-og-mekanismeanalyse",
+  "code" : "29014PU219",
+  "timetable" : [
+    {
+      "day" : "tuesday",
+      "start" : 10,
+      "end" : 12
+    }
+  ],
+  "courseUrl" : "https:\/\/brightspace.au.dk\/d2l\/home\/219925",
+  "name" : "Finite-Element-og-Mekanismeanalyse"
+}

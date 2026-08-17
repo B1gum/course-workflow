@@ -14,28 +14,6 @@ function Util.isNonEmptyString(value)
     return type(value) == "string" and Util.trim(value) ~= ""
 end
 
-function Util.selectedFilePath(result)
-    if Util.isNonEmptyString(result) then
-        return Util.trim(result)
-    end
-
-    if type(result) ~= "table" then
-        return nil
-    end
-
-    if Util.isNonEmptyString(result[1]) then
-        return Util.trim(result[1])
-    end
-
-    for _, value in pairs(result) do
-        if Util.isNonEmptyString(value) then
-            return Util.trim(value)
-        end
-    end
-
-    return nil
-end
-
 function Util.shellQuote(value)
     value = tostring(value)
     return "'" .. value:gsub("'", "'\"'\"'") .. "'"
