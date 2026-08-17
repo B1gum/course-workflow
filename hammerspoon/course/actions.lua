@@ -11,6 +11,7 @@ local Figures = require("course.figures")
 local References = require("course.references")
 local ReferenceChooser = require("course.reference_chooser")
 local ReferenceCapture = require("course.reference_capture")
+local Textbook = require("course.textbook")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
@@ -141,6 +142,12 @@ Actions.SPEC = {
     },
 
     openLiterature = {
+        part = "XIV",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    setTextbook = {
         part = "XIV",
         implemented = true,
         context = true,
@@ -1164,6 +1171,53 @@ function Actions.openLiterature(options, runtime)
         course = course,
         path = course.book,
     }
+end
+
+function Actions.setTextbook(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "setTextbook",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local textbookOptions = shallowCopy(options)
+    textbookOptions.global = global
+
+    local result, textbookErr = Textbook.set(
+        context.course,
+        textbookOptions,
+        runtime
+    )
+
+    if not result then
+        return nil, textbookErr
+    end
+
+    if result.cancelled == true then
+        return result
+    end
+
+    local reloaded, reloadErr = Registry.reload()
+
+    if not reloaded then
+        return nil,
+            "Textbook was updated, but course configuration could not be reloaded: "
+                .. tostring(reloadErr)
+    end
+
+    local refreshed = Registry.getCourse(context.course.id)
+    result.course = refreshed or context.course
+    return result
 end
 
 function Actions.openLiteratureFolder(options, runtime)

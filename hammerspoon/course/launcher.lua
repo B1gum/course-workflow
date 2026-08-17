@@ -231,6 +231,14 @@ local function safeCourses()
     return courses
 end
 
+local function textbookActionLabel(course)
+    if course and Util.isNonEmptyString(course.bookSource) then
+        return "Change Textbook…"
+    end
+
+    return "Add Textbook…"
+end
+
 function Launcher.buildRootChoices(context)
     local choices = {}
 
@@ -262,6 +270,7 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
         table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
         table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
+        table.insert(choices, actionChoice(textbookActionLabel(course), "setTextbook", courseOptions))
         table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
         table.insert(choices, actionChoice("Save Reference", "saveReference", courseOptions, "Safari → Zotero → current course"))
         table.insert(choices, actionChoice("Save Reference Unfiled", "saveReferenceUnfiled", nil, "Safari → Zotero Unfiled"))
@@ -429,6 +438,7 @@ function Launcher.buildCourseChoices(course)
     table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
     table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
     table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
+    table.insert(choices, actionChoice(textbookActionLabel(course), "setTextbook", courseOptions))
     table.insert(choices, actionChoice("Open Literature Folder", "openLiteratureFolder", courseOptions))
     table.insert(choices, actionChoice("Save Reference", "saveReference", courseOptions, "Safari → Zotero → this course"))
     table.insert(choices, actionChoice("Save Reference Unfiled", "saveReferenceUnfiled", nil, "Safari → Zotero Unfiled"))
@@ -478,6 +488,7 @@ local ACTION_FIRST = {
     { text = "MATLAB", action = "openMatlab" },
     { text = "Open MATLAB Folder", action = "openMatlabFolder" },
     { text = "Open Literature", action = "openLiterature" },
+    { text = "Add / Change Textbook…", action = "setTextbook" },
     { text = "Open Literature Folder", action = "openLiteratureFolder" },
     { text = "Search References", action = "searchReferences" },
     { text = "Open References", action = "openReferences" },
@@ -681,6 +692,14 @@ local function invoke(actionName, options)
         notify("Active course · " .. (course.shortName or course.name or course.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
+    elseif actionName == "setTextbook" then
+        if result.cancelled ~= true then
+            local course = result.course
+            notify(
+                "Textbook updated · "
+                    .. (course.shortName or course.name or course.id)
+            )
+        end
     elseif actionName == "setTimetableAutoSwitchEnabled"
         or actionName == "setCalendarAutoSwitchEnabled" then
         notify(

@@ -171,6 +171,13 @@ function Menubar.invoke(actionName, options)
         notify("Active semester · " .. tostring(result.name or result.id))
     elseif actionName == "reloadConfiguration" then
         notify("Course configuration reloaded.")
+    elseif actionName == "setTextbook" then
+        if result.cancelled ~= true then
+            notify(
+                "Textbook updated · "
+                    .. courseLabel(result.course)
+            )
+        end
     elseif actionName == "setTimetableAutoSwitchEnabled"
         or actionName == "setCalendarAutoSwitchEnabled" then
         notify(
@@ -344,9 +351,14 @@ end
 local function literatureMenu(context)
     local course = context and context.course or nil
     local options = course and explicitCourseOptions(course) or nil
+    local manageLabel = course
+        and course.bookSource
+        and "Change Textbook…"
+        or "Add Textbook…"
 
     return {
         actionItem("Open Textbook", "openLiterature", options),
+        actionItem(manageLabel, "setTextbook", options),
         actionItem("Open Literature Folder", "openLiteratureFolder", options),
     }
 end
