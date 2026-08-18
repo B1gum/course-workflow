@@ -490,7 +490,6 @@ local function defaultTaskFactory(executable, arguments, workingDirectory, callb
     local task = hs.task.new(
         executable,
         callback,
-        nil,
         arguments
     )
 

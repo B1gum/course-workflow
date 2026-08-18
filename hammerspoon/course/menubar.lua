@@ -321,6 +321,7 @@ local function assignmentsMenu(context)
 
     return {
         actionItem("Open Assignments", "openAssignments", courseOptions),
+        actionItem("New Assignment", "newAssignment", courseOptions),
         { title = "-" },
         actionItem("New Assignment Figure", "newFigure", assignmentOptions),
         actionItem("Find Assignment Figure", "findFigure", assignmentOptions),

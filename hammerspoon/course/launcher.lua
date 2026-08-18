@@ -266,6 +266,7 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("New Figure", "newFigure", activeOptions))
         table.insert(choices, actionChoice("Find Figure", "findFigure", activeOptions))
         table.insert(choices, actionChoice("Open Assignments", "openAssignments", courseOptions))
+        table.insert(choices, actionChoice("New Assignment", "newAssignment", courseOptions))
         table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
         table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
         table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
@@ -439,6 +440,7 @@ function Launcher.buildCourseChoices(course)
 
     table.insert(choices, header("ASSIGNMENTS", nil))
     table.insert(choices, actionChoice("Open Assignments", "openAssignments", courseOptions))
+    table.insert(choices, actionChoice("New Assignment", "newAssignment", courseOptions))
     table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
     table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
 
@@ -484,6 +486,7 @@ local ACTION_FIRST = {
         workContext = Context.WORK_CONTEXT.NOTES,
     },
     { text = "Open Assignments", action = "openAssignments" },
+    { text = "New Assignment", action = "newAssignment" },
     {
         text = "New Assignment Figure",
         action = "newFigure",

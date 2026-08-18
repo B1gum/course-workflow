@@ -6,6 +6,7 @@ local Registry = require("course.registry")
 local State = require("course.state")
 local Util = require("course.util")
 local Lectures = require("course.lectures")
+local Assignments = require("course.assignments")
 local LaTeX = require("course.latex")
 local Figures = require("course.figures")
 local References = require("course.references")
@@ -114,6 +115,12 @@ Actions.SPEC = {
     },
 
     openAssignments = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    newAssignment = {
         part = "XVI",
         implemented = true,
         context = true,
@@ -1752,6 +1759,131 @@ local function defaultPromptLectureTitle(course, number)
     end
 
     return title
+end
+
+
+local function defaultPromptAssignmentTitle(course, number)
+    local numberText = assert(Assignments.numberText(number))
+    local defaultTitle = "Assignment " .. tostring(number)
+    local button, title = hs.dialog.textPrompt(
+        "New Assignment",
+        string.format(
+            "%s · assignment_%s.tex",
+            course.shortName or course.name or course.id,
+            numberText
+        ),
+        defaultTitle,
+        "Create",
+        "Cancel"
+    )
+
+    if button ~= "Create" then
+        return false
+    end
+
+    return title
+end
+
+local function openAssignmentPath(path, course, runtime)
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local pathMode = runtimeFunction(runtime, "pathMode", defaultPathMode)
+    local modeOk, mode = pcall(pathMode, path)
+
+    if not modeOk then
+        return nil, "Could not inspect assignment path: " .. tostring(mode)
+    end
+
+    if mode ~= "file" then
+        return nil, "Assignment file is missing: " .. path
+    end
+
+    local opened, openErr = callRuntime(
+        runtime,
+        "openPathInNvim",
+        defaultOpenPathInNvim,
+        path,
+        course.root,
+        global.itermBundleId
+    )
+
+    if not opened then
+        return nil, "Could not open assignment in Neovim: " .. tostring(openErr)
+    end
+
+    return true
+end
+
+function Actions.newAssignment(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "newAssignment",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local course = context.course
+    local nextNumber, numberErr = Assignments.nextNumber(course)
+
+    if not nextNumber then
+        return nil, numberErr
+    end
+
+    local prompt = runtimeFunction(
+        runtime,
+        "promptAssignmentTitle",
+        defaultPromptAssignmentTitle
+    )
+
+    local promptOk, titleOrCancelled = pcall(prompt, course, nextNumber)
+
+    if not promptOk then
+        return nil,
+            "Could not ask for assignment title: " .. tostring(titleOrCancelled)
+    end
+
+    if titleOrCancelled == false or titleOrCancelled == nil then
+        return { cancelled = true }
+    end
+
+    if not Util.isNonEmptyString(titleOrCancelled) then
+        return nil, "Assignment title cannot be empty."
+    end
+
+    local assignment, createErr = Assignments.create(course, {
+        number = nextNumber,
+        title = titleOrCancelled,
+    })
+
+    if not assignment then
+        return nil, createErr
+    end
+
+    local opened, openErr = openAssignmentPath(
+        assignment.path,
+        course,
+        runtime
+    )
+
+    if not opened then
+        -- Creation succeeded; never delete academic work merely because the
+        -- editor handoff failed. Return the path in the error for recovery.
+        return nil,
+            string.format(
+                "Assignment created at %s, but could not open it: %s",
+                assignment.path,
+                tostring(openErr)
+            )
+    end
+
+    return assignment
 end
 
 function Actions.newLecture(options, runtime)

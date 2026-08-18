@@ -32,6 +32,8 @@ The global course layer uses **Command+Shift (`⌘⇧`)** as its Hyper modifier.
 | `⌘⇧L` | Open literature |
 | `⌘⇧C` | Compile current |
 
+`New Assignment` is available from the launcher and the Assignments menu. It chooses the next `assignment_XX.tex` number, pre-fills `Assignment N`, writes a `noahassignment` document with the course metadata, and opens it in Neovim.
+
 `⌘⇧F` deliberately uses the figure picker as the single figure entry point; the picker also exposes creation, so a separate global “new figure” shortcut is unnecessary.
 
 ## Repository layout
@@ -58,6 +60,7 @@ course/
 │   ├── figures/
 │   └── .build/
 ├── assignments/
+│   ├── assignment_01.tex           # created by New Assignment
 │   └── figures/
 ├── matlab/
 ├── literature/
