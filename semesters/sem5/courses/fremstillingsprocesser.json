@@ -7,16 +7,16 @@
   "shortName" : "Fremstillingsprocesser",
   "id" : "fremstillingsprocesser",
   "code" : "290221U001",
-  "timetable" : [
-    {
-      "day" : "thursday",
-      "start" : 8,
-      "end" : 12
-    }
-  ],
   "book" : {
     "source" : "\/Users\/noahhansen\/Desktop\/Books\/Uni\/Bachelor\/5_Semester_Books\/Fremstillings-processer\/Kalpakijan & Schmid – Manufacturing Engineering and Technology SI.pdf"
   },
+  "timetable" : [
+    {
+      "day" : "thursday",
+      "start" : 10,
+      "end" : 12
+    }
+  ],
   "courseUrl" : "https:\/\/brightspace.au.dk\/d2l\/home\/219698",
   "name" : "Fremstillingsprocesser"
 }
