@@ -724,7 +724,6 @@ local function defaultOpenFileWithBundle(path, bundleId)
     local task = hs.task.new(
         "/usr/bin/open",
         nil,
-        nil,
         { "-b", bundleId, path }
     )
 
@@ -754,7 +753,6 @@ end
 local function defaultOpenPath(path)
     local task = hs.task.new(
         "/usr/bin/open",
-        nil,
         nil,
         { path }
     )
