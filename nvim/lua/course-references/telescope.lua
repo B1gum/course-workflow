@@ -51,7 +51,24 @@ local function restore_window(position)
     return nil
 end
 
-local function insert_citation(position, keys)
+local function normalize_page_input(input)
+    local page = vim.trim(input or "")
+
+    if page == "" then
+        return ""
+    end
+
+    page = page:gsub("–", "-"):gsub("—", "-")
+    local first, last = page:match("^(%d+)%s*%-+%s*(%d+)$")
+
+    if first and last then
+        return first .. "--" .. last
+    end
+
+    return page
+end
+
+local function insert_citation(position, keys, page)
     if not position or #keys == 0 then
         return
     end
@@ -68,7 +85,13 @@ local function insert_citation(position, keys)
 
     local row = position.cursor[1] - 1
     local col = position.cursor[2]
-    local text = "\\cite{" .. table.concat(keys, ",") .. "}"
+    local text
+
+    if page and page ~= "" and #keys == 1 then
+        text = "\\citepage{" .. keys[1] .. "}{" .. page .. "}"
+    else
+        text = "\\cite{" .. table.concat(keys, ",") .. "}"
+    end
 
     vim.api.nvim_buf_set_text(position.bufnr, row, col, row, col, { text })
     local winid = restore_window(position)
@@ -76,6 +99,30 @@ local function insert_citation(position, keys)
     if winid then
         vim.api.nvim_win_set_cursor(winid, { row + 1, col + #text })
     end
+end
+
+local function prompt_and_insert_citation(position, keys)
+    if #keys == 0 then
+        return
+    end
+
+    -- A page postnote can only unambiguously belong to one selected source.
+    -- Preserve the existing multi-citation behaviour when several are selected.
+    if #keys > 1 then
+        insert_citation(position, keys)
+        return
+    end
+
+    vim.ui.input({
+        prompt = "Pages (blank = normal cite): ",
+    }, function(input)
+        -- Esc/cancel means: do not insert anything. Empty + Enter means normal cite.
+        if input == nil then
+            return
+        end
+
+        insert_citation(position, keys, normalize_page_input(input))
+    end)
 end
 
 local function open_reference(entry)
@@ -181,7 +228,9 @@ function M.pick(items, options)
                 end
 
                 actions.close(prompt_bufnr)
-                insert_citation(options.position, keys)
+                vim.schedule(function()
+                    prompt_and_insert_citation(options.position, keys)
+                end)
             end)
 
             for _, mode in ipairs({ "i", "n" }) do
