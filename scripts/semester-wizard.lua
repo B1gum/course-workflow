@@ -1638,7 +1638,6 @@ local function provisionCourseTextbook(draft, course, report)
         collectionKey = course.zotero.collectionKey,
         bookItemKey = course.zotero.bookItemKey,
         bookPath = bookPath,
-        exportPath = exportPath,
         metadata = metadata,
     })
 
@@ -1656,6 +1655,13 @@ local function provisionCourseTextbook(draft, course, report)
 
     course.zotero.bookItemKey = result.bookItemKey
 
+    -- Persist durable textbook identity before waiting on Better BibTeX's
+    -- derived auto-export. A slow export must not lose the Book binding on the
+    -- next idempotent run.
+    if not writeProvisionedCourseConfig(draft, course, report) then
+        return false
+    end
+
     addReport(
         report,
         result.reused and "existing" or "created",
@@ -1663,7 +1669,7 @@ local function provisionCourseTextbook(draft, course, report)
             "Zotero Book %s [%s] -> %s",
             course.name,
             result.bookItemKey,
-            result.citationKey
+            result.citationKey or "(citation key pending)"
         )
     )
 
@@ -1673,9 +1679,40 @@ local function provisionCourseTextbook(draft, course, report)
         "Linked textbook attachment -> " .. bookPath
     )
 
-    if not writeProvisionedCourseConfig(draft, course, report) then
+    if not Util.isNonEmptyString(result.citationKey) then
+        addReport(
+            report,
+            "errors",
+            "Textbook citation key for "
+                .. course.name
+                .. " is still pending: "
+                .. tostring(result.citationKeyError)
+        )
         return false
     end
+
+    local exported, exportErr = References.waitForBibKey(
+        exportPath,
+        result.citationKey
+    )
+
+    if not exported then
+        addReport(
+            report,
+            "errors",
+            "Textbook bibliography export for "
+                .. course.name
+                .. ": "
+                .. tostring(exportErr)
+        )
+        return false
+    end
+
+    addReport(
+        report,
+        "existing",
+        "Verified textbook citation in bibliography -> " .. exportPath
+    )
 
     return true
 end

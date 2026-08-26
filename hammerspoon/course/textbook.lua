@@ -689,7 +689,6 @@ function Textbook.set(course, options, runtime)
         collectionKey = collectionKey,
         bookItemKey = reuseExisting and existingBookItemKey or nil,
         bookPath = course.book,
-        exportPath = course.referencesBib,
         metadata = metadata,
     }, runtime)
 
@@ -722,19 +721,11 @@ function Textbook.set(course, options, runtime)
     )
 
     if not wrote then
-        local rollbackOk, rollbackErr = restoreLink(
-            previous,
-            course,
-            runtime
-        )
-
-        return nil, appendRollback(
-            "Could not update course JSON; textbook link was rolled back. "
-                .. "Zotero may already contain the provisioned textbook: "
-                .. tostring(writeErr),
-            rollbackOk,
-            rollbackErr
-        )
+        return nil,
+            "Could not update course JSON after Zotero textbook provisioning. "
+                .. "The textbook symlink was kept so Zotero's linked attachment remains valid. "
+                .. "Fix the config write error and rerun Add textbook: "
+                .. tostring(writeErr)
     end
 
     local validated, validationErr =
@@ -747,15 +738,10 @@ function Textbook.set(course, options, runtime)
                 oldConfigContents
             )
 
-        local rollbackOk, rollbackErr = restoreLink(
-            previous,
-            course,
-            runtime
-        )
-
         local message =
             "Updated course config failed validation and was rolled back: "
                 .. tostring(validationErr)
+                .. " The textbook symlink was kept so Zotero's linked attachment remains valid."
 
         if not restoredConfig then
             message = message
@@ -763,10 +749,17 @@ function Textbook.set(course, options, runtime)
                 .. tostring(restoreConfigErr)
         end
 
-        return nil, appendRollback(
-            message,
-            rollbackOk,
-            rollbackErr
+        return nil, message
+    end
+
+    local bibliographyReady = false
+    local bibliographyErr = provisioned.citationKeyError
+
+    if Util.isNonEmptyString(provisioned.citationKey) then
+        bibliographyReady, bibliographyErr = References.waitForBibKey(
+            course.referencesBib,
+            provisioned.citationKey,
+            runtime
         )
     end
 
@@ -780,6 +773,8 @@ function Textbook.set(course, options, runtime)
         reusedBookItem = provisioned.reused == true,
         reusedPreviousIdentity = reuseExisting == true,
         helperVersion = helper.version,
+        bibliographyReady = bibliographyReady == true,
+        bibliographyError = bibliographyErr,
     }
 end
 

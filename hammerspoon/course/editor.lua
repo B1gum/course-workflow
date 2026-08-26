@@ -524,7 +524,18 @@ function Editor.show(course, options, runtime)
         if choice.field == "references" then
             notify(runtime, "References repaired · " .. courseLabel(result.course))
         elseif choice.field == "textbook" then
-            notify(runtime, "Textbook updated · " .. courseLabel(result.course))
+            if result.bibliographyReady == false then
+                if result.bibliographyError then
+                    print(
+                        "Textbook bibliography verification warning: "
+                            .. tostring(result.bibliographyError)
+                    )
+                end
+
+                notify(runtime, "Textbook updated · references.bib still pending · " .. courseLabel(result.course))
+            else
+                notify(runtime, "Textbook updated · " .. courseLabel(result.course))
+            end
         else
             notify(runtime, "Course updated · " .. courseLabel(result.course))
         end

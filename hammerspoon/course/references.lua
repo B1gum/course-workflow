@@ -9,6 +9,9 @@ References.BIBLATEX_TRANSLATOR = "Better BibLaTeX"
 References.ZOTERO_HELPER_BASE = References.ZOTERO_LOCAL_BASE .. "/course-workflow"
 References.PAGE_SIZE = 100
 References.CAPTURE_RECENT_LIMIT = 100
+References.EXPORT_VERIFY_RETRIES = 120
+References.CITATION_KEY_VERIFY_RETRIES = 40
+References.ASYNC_VERIFY_DELAY = 0.25
 
 local JSON_HEADERS = {
     ["Content-Type"] = "application/json",
@@ -1016,7 +1019,7 @@ local function waitForCitationKey(itemKey, runtime)
     local sleeper = runtimeFunction(runtime, "sleep", sleepSeconds)
     local lastErr
 
-    for _ = 1, 20 do
+    for _ = 1, References.CITATION_KEY_VERIFY_RETRIES do
         local key, err = citationKeyForItem(itemKey, runtime)
 
         if key then
@@ -1024,7 +1027,7 @@ local function waitForCitationKey(itemKey, runtime)
         end
 
         lastErr = err
-        sleeper(0.1)
+        sleeper(References.ASYNC_VERIFY_DELAY)
     end
 
     return nil, lastErr
@@ -1039,11 +1042,14 @@ function References.waitForExportFile(exportPath, runtime)
     local sleeper = runtimeFunction(runtime, "sleep", sleepSeconds)
     exportPath = Util.normalizePath(exportPath) or Util.trim(exportPath)
 
-    for _ = 1, 50 do
+    -- Better BibTeX auto-export is deliberately debounced. Keep verification
+    -- bounded, but allow enough time for the normal delay and a busy Zotero
+    -- event loop instead of racing a derived file immediately after mutation.
+    for _ = 1, References.EXPORT_VERIFY_RETRIES do
         if mode(exportPath) == "file" then
             return true
         end
-        sleeper(0.1)
+        sleeper(References.ASYNC_VERIFY_DELAY)
     end
 
     return nil,
@@ -1060,14 +1066,17 @@ function References.waitForBibKey(exportPath, citationKey, runtime)
     local sleeper = runtimeFunction(runtime, "sleep", sleepSeconds)
     local wanted = "{" .. Util.trim(citationKey) .. ","
 
-    for _ = 1, 30 do
+    -- Collection membership changes are durable before Better BibTeX rewrites
+    -- the generated .bib file. Give that asynchronous export a realistic,
+    -- bounded window rather than treating its debounce delay as a failure.
+    for _ = 1, References.EXPORT_VERIFY_RETRIES do
         local contents = Util.readFile(exportPath)
 
         if type(contents) == "string" and contents:find(wanted, 1, true) then
             return true
         end
 
-        sleeper(0.1)
+        sleeper(References.ASYNC_VERIFY_DELAY)
     end
 
     return nil,
@@ -1869,25 +1878,18 @@ function References.provisionTextbook(options, runtime)
     end
 
     local citationKey, citationErr = waitForCitationKey(itemKey, runtime)
-    if not citationKey then
-        return nil, citationErr
-    end
 
-    if Util.isNonEmptyString(options.exportPath) then
-        local exported, exportErr = References.waitForBibKey(
-            options.exportPath,
-            citationKey,
-            runtime
-        )
-
-        if not exported then
-            return nil, exportErr
-        end
-    end
+    -- The helper mutation above is already durable: the Book identity,
+    -- collection membership, and linked attachment now exist in Zotero.
+    -- Do not turn a delayed Better BibTeX citation/export into a provisioning
+    -- failure that encourages callers to roll local state back underneath the
+    -- linked attachment. Callers persist bookItemKey first, then verify the
+    -- derived bibliography separately.
 
     return {
         bookItemKey = itemKey,
         citationKey = citationKey,
+        citationKeyError = citationKey and nil or citationErr,
         reused = reused or helperResult.reused == true,
         collectionMembershipChanged = helperResult.collectionMembershipChanged == true,
         attachmentKey = helperResult.attachmentKey,
