@@ -1,21 +1,25 @@
 {
   "zotero" : {
-    "collectionKey" : "A5P45LE6"
+    "collectionKey" : "A5P45LE6",
+    "bookItemKey" : "GRG9EC72"
   },
   "slug" : "varmetransmission",
   "shortName" : "Varmetransmission",
   "id" : "varmetransmission",
+  "book" : {
+    "source" : "\/Users\/noahhansen\/Desktop\/Books\/Uni\/Bachelor\/5_Semester_Books\/varmetransmission\/CengelGhajarHeatandMassTransfer.pdf"
+  },
   "code" : "290221U002",
   "timetable" : [
     {
-      "day" : "tuesday",
       "start" : 8,
-      "end" : 10
+      "end" : 10,
+      "day" : "tuesday"
     },
     {
-      "day" : "thursday",
       "start" : 12,
-      "end" : 14
+      "end" : 14,
+      "day" : "thursday"
     }
   ],
   "courseUrl" : "https:\/\/brightspace.au.dk\/d2l\/home\/219699",
