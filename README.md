@@ -62,6 +62,12 @@ course/
 ├── assignments/
 │   ├── assignment_01.tex           # created by New Assignment
 │   └── figures/
+├── exercises/                      # optional; provisioned from the course picker
+│   ├── master.tex                  # combined noahassignment document
+│   ├── exercises/
+│   │   ├── ex_01.tex
+│   │   └── ex_02.tex
+│   └── figures/
 ├── matlab/
 ├── literature/
 │   └── book.pdf                    # optional symlink
@@ -153,6 +159,14 @@ notes/.build/selected.tex
 and compiles from there. Partial builds may naturally contain undefined references to omitted material.
 
 SyncTeX is intentionally left to the native VimTeX/Skim integration; the workflow does not implement a second inverse-search mechanism.
+
+## Exercises
+
+Exercises are opt-in per course. Open **Courses…**, choose a course, and run **Add Exercises…**. The filesystem itself is the persistent opt-in signal, so no course-metadata migration is required.
+
+The action creates `exercises/master.tex`, `exercises/exercises/`, and `exercises/figures/`. The master uses `noahassignment` and manual problem numbering. **New Exercise** creates the next strict `ex_NN.tex` file, writes a matching `\begin{problem}{N}` block, adds `\input{exercises/ex_NN}` inside the managed master region, and opens the file in Neovim. Each exercise carries `% !TeX root = ../master.tex`, so normal VimTeX/Skim compilation continues to target the combined exercise document.
+
+Exercise paths resolve as their own `exercises` work context, which gives the standard figure workflow an independent `exercises/figures/` scope. **Choose Exercise** reopens an existing strict `ex_NN.tex` file from the course picker.
 
 ## References
 

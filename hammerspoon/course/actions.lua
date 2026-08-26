@@ -7,6 +7,7 @@ local State = require("course.state")
 local Util = require("course.util")
 local Lectures = require("course.lectures")
 local Assignments = require("course.assignments")
+local Exercises = require("course.exercises")
 local LaTeX = require("course.latex")
 local Figures = require("course.figures")
 local References = require("course.references")
@@ -127,6 +128,49 @@ Actions.SPEC = {
         requirements = { course = true },
     },
     openAssignmentFigures = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+
+    addExercises = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openExercises = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    newExercise = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    chooseExercise = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openExercisesFolder = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openExerciseFiles = {
+        part = "XVI",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
+    },
+    openExerciseFigures = {
         part = "XVI",
         implemented = true,
         context = true,
@@ -1101,6 +1145,36 @@ function Actions.openAssignmentFigures(options, runtime)
     )
 end
 
+function Actions.openExercisesFolder(options, runtime)
+    return openCourseDirectory(
+        "openExercisesFolder",
+        function(course) return course.exercises.root end,
+        "Exercises folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openExerciseFiles(options, runtime)
+    return openCourseDirectory(
+        "openExerciseFiles",
+        function(course) return course.exercises.entries end,
+        "Exercise files folder",
+        options,
+        runtime
+    )
+end
+
+function Actions.openExerciseFigures(options, runtime)
+    return openCourseDirectory(
+        "openExerciseFigures",
+        function(course) return course.exercises.figures end,
+        "Exercise figures folder",
+        options,
+        runtime
+    )
+end
+
 function Actions.openMatlab(options, runtime)
     local context, contextErr = Actions.resolveFor(
         "openMatlab",
@@ -1816,6 +1890,261 @@ local function openAssignmentPath(path, course, runtime)
     end
 
     return true
+end
+
+local function openExercisePath(path, course, runtime)
+    local global, globalErr = workflowGlobalConfig()
+
+    if not global then
+        return nil, globalErr
+    end
+
+    local pathMode = runtimeFunction(runtime, "pathMode", defaultPathMode)
+    local modeOk, mode = pcall(pathMode, path)
+
+    if not modeOk then
+        return nil, "Could not inspect exercise path: " .. tostring(mode)
+    end
+
+    if mode ~= "file" then
+        return nil, "Exercise file is missing: " .. path
+    end
+
+    local opened, openErr = callRuntime(
+        runtime,
+        "openPathInNvim",
+        defaultOpenPathInNvim,
+        path,
+        course.root,
+        global.itermBundleId
+    )
+
+    if not opened then
+        return nil, "Could not open exercise in Neovim: " .. tostring(openErr)
+    end
+
+    return true
+end
+
+function Actions.addExercises(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "addExercises",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    return Exercises.provision(context.course)
+end
+
+function Actions.openExercises(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "openExercises",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local course = context.course
+
+    if not Exercises.isProvisioned(course) then
+        return nil,
+            "Exercises are not provisioned for "
+                .. (course.shortName or course.name or course.id)
+                .. ". Use Add Exercises first."
+    end
+
+    local opened, openErr = openExercisePath(
+        course.exercises.master,
+        course,
+        runtime
+    )
+
+    if not opened then
+        return nil, openErr
+    end
+
+    return {
+        course = course,
+        path = course.exercises.master,
+    }
+end
+
+function Actions.newExercise(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "newExercise",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local course = context.course
+    local exercise, createErr = Exercises.create(course)
+
+    if not exercise then
+        return nil, createErr
+    end
+
+    local opened, openErr = openExercisePath(
+        exercise.path,
+        course,
+        runtime
+    )
+
+    if not opened then
+        return nil,
+            string.format(
+                "Exercise created at %s, but could not open it: %s",
+                exercise.path,
+                tostring(openErr)
+            )
+    end
+
+    return exercise
+end
+
+local function exerciseChoice(exercise)
+    return {
+        text = "ex_" .. exercise.numberText,
+        subText = exercise.path,
+        exercise = exercise.number,
+    }
+end
+
+function Actions.chooseExercise(options, runtime)
+    local context, contextErr = Actions.resolveFor(
+        "chooseExercise",
+        options,
+        runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    local exercises, listErr = Exercises.list(context.course)
+
+    if not exercises then
+        return nil, listErr
+    end
+
+    if #exercises == 0 then
+        return nil,
+            string.format(
+                'No exercise files exist for "%s".',
+                context.course.id
+            )
+    end
+
+    local choose = runtimeFunction(runtime, "chooseExerciseEntry", nil)
+
+    if choose then
+        local selected = choose(exercises, context.course)
+
+        if selected == false or selected == nil then
+            return { cancelled = true }
+        end
+
+        local selectedExercise = nil
+
+        if type(selected) == "table" and selected.path then
+            selectedExercise = selected
+        else
+            local number = type(selected) == "table" and selected.number or selected
+
+            for _, exercise in ipairs(exercises) do
+                if exercise.number == number then
+                    selectedExercise = exercise
+                    break
+                end
+            end
+        end
+
+        if not selectedExercise then
+            return nil, "Selected exercise no longer exists."
+        end
+
+        local opened, openErr = openExercisePath(
+            selectedExercise.path,
+            context.course,
+            runtime
+        )
+
+        if not opened then
+            return nil, openErr
+        end
+
+        return selectedExercise
+    end
+
+    local choices = {}
+
+    for _, exercise in ipairs(exercises) do
+        table.insert(choices, exerciseChoice(exercise))
+    end
+
+    if Actions._exerciseChooser then
+        Actions._exerciseChooser:delete()
+        Actions._exerciseChooser = nil
+    end
+
+    local course = context.course
+    local chooser
+    chooser = hs.chooser.new(function(choice)
+        Actions._exerciseChooser = nil
+
+        if not choice then
+            return
+        end
+
+        local selectedExercise = nil
+
+        for _, exercise in ipairs(exercises) do
+            if exercise.number == choice.exercise then
+                selectedExercise = exercise
+                break
+            end
+        end
+
+        if not selectedExercise then
+            hs.alert.show("Selected exercise no longer exists.")
+            return
+        end
+
+        local opened, openErr = openExercisePath(
+            selectedExercise.path,
+            course
+        )
+
+        if not opened and openErr then
+            hs.alert.show(openErr)
+        end
+    end)
+
+    chooser:searchSubText(true)
+    chooser:placeholderText(
+        "Choose exercise · " .. (course.shortName or course.name or course.id)
+    )
+    chooser:choices(choices)
+    chooser:rows(math.min(math.max(#choices, 5), 12))
+    chooser:show()
+
+    Actions._exerciseChooser = chooser
+
+    return {
+        chooser = chooser,
+        course = course,
+        exerciseCount = #exercises,
+    }
 end
 
 function Actions.newAssignment(options, runtime)

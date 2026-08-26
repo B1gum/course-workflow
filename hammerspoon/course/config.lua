@@ -358,6 +358,16 @@ local function resolveCourse(raw, global, semester)
         figures = Util.joinPath(root, "assignments", "figures"),
     }
 
+    -- Exercises are optional on disk, but their canonical paths are always
+    -- resolvable. Presence of exercises/master.tex is the persistent opt-in
+    -- signal, so existing course JSON does not need a migration.
+    course.exercises = {
+        root = Util.joinPath(root, "exercises"),
+        master = Util.joinPath(root, "exercises", "master.tex"),
+        entries = Util.joinPath(root, "exercises", "exercises"),
+        figures = Util.joinPath(root, "exercises", "figures"),
+    }
+
     course.matlab = Util.joinPath(root, "matlab")
     course.literature = Util.joinPath(root, "literature")
     course.book = Util.joinPath(root, "literature", "book.pdf")

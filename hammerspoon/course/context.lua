@@ -19,6 +19,7 @@ Context.LEVEL = {
 Context.WORK_CONTEXT = {
     NOTES = "notes",
     ASSIGNMENT = "assignment",
+    EXERCISES = "exercises",
 }
 
 Context.SOURCE = {
@@ -47,6 +48,7 @@ local VALID_LEVELS = {
 local VALID_WORK_CONTEXTS = {
     notes = true,
     assignment = true,
+    exercises = true,
 }
 
 local function isPositiveInteger(value)
@@ -124,7 +126,7 @@ function Context.makeResult(options)
         and not VALID_WORK_CONTEXTS[workContext] then
 
         return nil,
-            'Context workContext must be "notes", "assignment", or nil.'
+            'Context workContext must be "notes", "assignment", "exercises", or nil.'
     end
 
     local lecture = options.lecture
@@ -309,6 +311,8 @@ function Context.resolvePath(path, source)
         workContext = Context.WORK_CONTEXT.ASSIGNMENT
 
         -- Deliberately do NOT derive assignment identity from filename.
+    elseif Util.isPathWithin(normalized, course.exercises.root) then
+        workContext = Context.WORK_CONTEXT.EXERCISES
     end
 
     return Context.makeResult({

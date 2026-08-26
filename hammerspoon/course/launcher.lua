@@ -3,6 +3,7 @@ local Launcher = {}
 local Actions = require("course.actions")
 local Config = require("course.config")
 local Context = require("course.context")
+local Exercises = require("course.exercises")
 local Registry = require("course.registry")
 local State = require("course.state")
 local Util = require("course.util")
@@ -250,6 +251,11 @@ function Launcher.buildRootChoices(context)
             course,
             Context.WORK_CONTEXT.ASSIGNMENT
         )
+        local exerciseOptions = explicitCourseOptions(
+            course,
+            Context.WORK_CONTEXT.EXERCISES
+        )
+        local hasExercises = Exercises.isProvisioned(course)
 
         table.insert(
             choices,
@@ -269,6 +275,16 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("New Assignment", "newAssignment", courseOptions))
         table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
         table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
+
+        if hasExercises then
+            table.insert(choices, actionChoice("Open Exercises", "openExercises", courseOptions))
+            table.insert(choices, actionChoice("New Exercise", "newExercise", courseOptions))
+            table.insert(choices, actionChoice("New Exercise Figure", "newFigure", exerciseOptions))
+            table.insert(choices, actionChoice("Find Exercise Figure", "findFigure", exerciseOptions))
+        else
+            table.insert(choices, actionChoice("Add Exercises…", "addExercises", courseOptions))
+        end
+
         table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
         table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
         table.insert(choices, actionChoice("Open Literature", "openLiterature", courseOptions))
@@ -421,6 +437,11 @@ function Launcher.buildCourseChoices(course)
         course,
         Context.WORK_CONTEXT.ASSIGNMENT
     )
+    local exerciseOptions = explicitCourseOptions(
+        course,
+        Context.WORK_CONTEXT.EXERCISES
+    )
+    local hasExercises = Exercises.isProvisioned(course)
 
     table.insert(choices, actionChoice("Set Active Course", "setActiveCourse", courseOptions))
     table.insert(choices, actionChoice("Launch Course", "launchCourse", courseOptions))
@@ -444,6 +465,26 @@ function Launcher.buildCourseChoices(course)
     table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
     table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
 
+    table.insert(choices, header("EXERCISES", hasExercises and nil or "Optional · add to this course when needed"))
+
+    if hasExercises then
+        table.insert(choices, actionChoice("Open Exercises", "openExercises", courseOptions))
+        table.insert(choices, actionChoice("New Exercise", "newExercise", courseOptions))
+        table.insert(choices, actionChoice("Choose Exercise", "chooseExercise", courseOptions))
+        table.insert(choices, actionChoice("New Exercise Figure", "newFigure", exerciseOptions))
+        table.insert(choices, actionChoice("Find Exercise Figure", "findFigure", exerciseOptions))
+    else
+        table.insert(
+            choices,
+            actionChoice(
+                "Add Exercises…",
+                "addExercises",
+                courseOptions,
+                "Create exercises/master.tex, exercises/exercises/, and exercises/figures/"
+            )
+        )
+    end
+
     table.insert(choices, header("TOOLS & RESOURCES", nil))
     table.insert(choices, actionChoice("MATLAB", "openMatlab", courseOptions))
     table.insert(choices, actionChoice("Open MATLAB Folder", "openMatlabFolder", courseOptions))
@@ -463,6 +504,13 @@ function Launcher.buildCourseChoices(course)
     table.insert(choices, actionChoice("Open Notes Figures", "openNotesFigures", courseOptions))
     table.insert(choices, actionChoice("Open Assignments Folder", "openAssignments", courseOptions))
     table.insert(choices, actionChoice("Open Assignment Figures", "openAssignmentFigures", courseOptions))
+
+    if hasExercises then
+        table.insert(choices, actionChoice("Open Exercises Folder", "openExercisesFolder", courseOptions))
+        table.insert(choices, actionChoice("Open Exercise Files", "openExerciseFiles", courseOptions))
+        table.insert(choices, actionChoice("Open Exercise Figures", "openExerciseFigures", courseOptions))
+    end
+
     table.insert(choices, actionChoice("Open References Folder", "openReferencesFolder", courseOptions))
 
     return choices
@@ -732,6 +780,14 @@ local function invoke(actionName, options)
                     .. (course.shortName or course.name or course.id)
             )
         end
+    elseif actionName == "addExercises" then
+        local course = result.course
+        notify(
+            result.masterCreated
+                and ("Exercises added · " .. (course.shortName or course.name or course.id))
+                or ("Exercises repaired · " .. (course.shortName or course.name or course.id))
+        )
+        Launcher.showCourse(course.id)
     elseif actionName == "setTimetableAutoSwitchEnabled"
         or actionName == "setCalendarAutoSwitchEnabled" then
         notify(

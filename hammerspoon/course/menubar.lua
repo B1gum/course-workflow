@@ -2,6 +2,7 @@ local Menubar = {}
 
 local Actions = require("course.actions")
 local Context = require("course.context")
+local Exercises = require("course.exercises")
 local Launcher = require("course.launcher")
 local Registry = require("course.registry")
 local State = require("course.state")
@@ -198,6 +199,12 @@ function Menubar.invoke(actionName, options)
                     .. courseLabel(result.course)
             )
         end
+    elseif actionName == "addExercises" then
+        notify(
+            result.masterCreated == true
+                and ("Exercises added · " .. courseLabel(result.course))
+                or ("Exercises repaired · " .. courseLabel(result.course))
+        )
     elseif actionName == "setTimetableAutoSwitchEnabled"
         or actionName == "setCalendarAutoSwitchEnabled" then
         notify(
@@ -328,6 +335,42 @@ local function assignmentsMenu(context)
     }
 end
 
+local function exercisesMenu(context)
+    local course = context and context.course or nil
+    local courseOptions = course and explicitCourseOptions(course) or nil
+
+    if not course or not Exercises.isProvisioned(course) then
+        return {
+            actionItem(
+                "Add Exercises…",
+                "addExercises",
+                courseOptions,
+                {
+                    tooltip = "Create exercises/master.tex, exercises/exercises/, and exercises/figures/",
+                }
+            ),
+        }
+    end
+
+    local exerciseOptions = explicitCourseOptions(
+        course,
+        Context.WORK_CONTEXT.EXERCISES
+    )
+
+    return {
+        actionItem("Open Exercises", "openExercises", courseOptions),
+        actionItem("New Exercise", "newExercise", courseOptions),
+        actionItem("Choose Exercise…", "chooseExercise", courseOptions),
+        { title = "-" },
+        actionItem("New Exercise Figure", "newFigure", exerciseOptions),
+        actionItem("Find Exercise Figure", "findFigure", exerciseOptions),
+        { title = "-" },
+        actionItem("Open Exercises Folder", "openExercisesFolder", courseOptions),
+        actionItem("Open Exercise Files", "openExerciseFiles", courseOptions),
+        actionItem("Open Exercise Figures", "openExerciseFigures", courseOptions),
+    }
+end
+
 local function figuresMenu(context)
     local course = context and context.course or nil
     local currentOptions = optionsFromContext(context)
@@ -421,6 +464,7 @@ function Menubar.buildMenu(context, contextErr)
         table.insert(menu, actionItem("Edit Course…", "editCourse", courseOptions))
         table.insert(menu, { title = "Notes", menu = notesMenu(context) })
         table.insert(menu, { title = "Assignments", menu = assignmentsMenu(context) })
+        table.insert(menu, { title = "Exercises", menu = exercisesMenu(context) })
         table.insert(menu, { title = "Figures", menu = figuresMenu(context) })
         table.insert(menu, { title = "MATLAB", menu = matlabMenu(context) })
         table.insert(menu, { title = "Literature", menu = literatureMenu(context) })

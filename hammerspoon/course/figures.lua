@@ -36,7 +36,15 @@ function Figures.scope(course, workContext)
         }
     end
 
-    return nil, "Figure scope requires notes or assignment context."
+    if workContext == Context.WORK_CONTEXT.EXERCISES then
+        return {
+            workContext = workContext,
+            projectRoot = course.exercises.root,
+            figuresDir = course.exercises.figures,
+        }
+    end
+
+    return nil, "Figure scope requires notes, assignment, or exercises context."
 end
 
 local REPO_ROOT_LUA = [[
