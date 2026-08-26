@@ -136,7 +136,7 @@ function Exercises.renderMaster(course)
         string.format("  semester={%s},", course.semesterName),
         "  submission-date={},",
         "  submission-date-iso={},",
-        "  problem-numbering=automatic,",
+        "  problem-numbering=manual,",
         "  subproblem-numbering=letters,",
         "  toc-subproblems=true",
         "}",
