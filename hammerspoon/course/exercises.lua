@@ -59,11 +59,6 @@ local function documentTitle(course)
     return language == "danish" and "Øvelser" or "Exercises"
 end
 
-local function notApplicableText(course)
-    local language = classSettings(course)
-    return language == "danish" and "Ikke relevant" or "Not applicable"
-end
-
 local function classOptions(course)
     local language, output = classSettings(course)
     return table.concat({ language, output, "final" }, ",")
@@ -139,16 +134,20 @@ function Exercises.renderMaster(course)
         string.format("  running-title={%s},", title),
         "  instructor={},",
         string.format("  semester={%s},", course.semesterName),
-        string.format("  submission-date={%s},", notApplicableText(course)),
+        "  submission-date={},",
         "  submission-date-iso={},",
-        "  problem-numbering=manual,",
+        "  problem-numbering=automatic,",
         "  subproblem-numbering=letters,",
         "  toc-subproblems=true",
         "}",
         "",
         "\\begin{document}",
         "",
+        "\\frontmatter",
+        "\\maketitle",
         "\\tableofcontents",
+        "",
+        "\\mainmatter",
         "",
         Exercises.MANAGED_BEGIN,
         "",
@@ -168,14 +167,7 @@ function Exercises.render(number)
         return nil, numberErr
     end
 
-    return table.concat({
-        "% !TeX root = ../master.tex",
-        "",
-        string.format("\\begin{problem}{%d}", number),
-        "",
-        "\\end{problem}",
-        "",
-    }, "\n")
+    return "% !TeX root = ../master.tex\n\n"
 end
 
 function Exercises.list(course)
