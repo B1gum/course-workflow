@@ -49,14 +49,24 @@ end
 
 local REPO_ROOT_LUA = [[
 local function workflow_repo_root()
-  local module_path = package.searchpath("noah-inkscape", package.path)
-  if not module_path then
+  local ok = pcall(require, "noah-inkscape")
+  if not ok then
     vim.notify("noah-inkscape is not installed in Neovim", vim.log.levels.ERROR)
     return nil
   end
+
+  local module_path =
+    vim.api.nvim_get_runtime_file("lua/noah-inkscape/init.lua", false)[1]
+
+  if not module_path then
+    vim.notify("Could not locate noah-inkscape on Neovim runtimepath", vim.log.levels.ERROR)
+    return nil
+  end
+
   module_path = (vim.uv and vim.uv.fs_realpath(module_path))
     or (vim.loop and vim.loop.fs_realpath(module_path))
     or module_path
+
   return vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(module_path))))
 end
 ]]
