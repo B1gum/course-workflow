@@ -32,24 +32,46 @@ vim.fn.mkdir(stateDir, "p")
 
 local pid = vim.fn.getpid()
 
-local tty = vim.trim(
-    vim.fn.system({
+local function processTTY(processPid)
+    local value = vim.trim(vim.fn.system({
         "/bin/ps",
         "-p",
-        tostring(pid),
+        tostring(processPid),
         "-o",
         "tty=",
-    })
-)
+    }))
+    if vim.v.shell_error ~= 0 then return nil end
+    value = value:gsub("^/dev/", "")
+    return value:match("^ttys?[%w]+$") and value or nil
+end
 
-tty = tty:gsub("^/dev/", "")
+local tty = processTTY(pid)
+local uiPid = pid
 
--- If Neovim somehow has no terminal, simply disable this bridge.
-if tty == "" or tty == "??" then
+-- Neovim's built-in terminal UI starts the editor as an --embed child. The
+-- child may have no TTY; its immediate parent is the nvim UI with the TTY.
+if not tty then
+    local parent = tonumber(vim.trim(vim.fn.system({
+        "/bin/ps", "-p", tostring(pid), "-o", "ppid=",
+    })))
+    if parent and vim.v.shell_error == 0 then
+        local command = vim.trim(vim.fn.system({
+            "/bin/ps", "-p", tostring(parent), "-o", "comm=",
+        }))
+        if vim.v.shell_error == 0 and command:match("([^/]+)$") == "nvim" then
+            tty = processTTY(parent)
+            uiPid = parent
+        end
+    end
+end
+
+-- No matching terminal UI means there is no iTerm2 session to return to.
+if not tty then
     return M
 end
 
 local statePath = stateDir .. "/" .. tty .. ".json"
+local lastActivity = 0
 
 local function removeState()
     pcall(os.remove, statePath)
@@ -106,7 +128,14 @@ local function publish()
         path = path,
         pid = pid,
         tty = tty,
+        ui_pid = uiPid,
         updated = os.time(),
+        -- Milliseconds since boot are comparable between Neovim processes.
+        last_active_ms = lastActivity,
+        server = vim.v.servername,
+        executable = vim.fn.exepath("nvim"),
+        cursor = vim.api.nvim_win_get_cursor(0),
+        changedtick = vim.api.nvim_buf_get_changedtick(buffer),
     }
 
     local ok, encoded = pcall(
@@ -121,6 +150,58 @@ local function publish()
     atomicWrite(encoded)
 end
 
+local function publishActivity()
+    lastActivity = math.floor((vim.uv or vim.loop).hrtime() / 1000000)
+    publish()
+end
+
+-- Called through nvim --server ... --remote-expr. The target buffer and cursor
+-- must still be the ones captured before Shortcuts started its model request.
+-- Return a single line so Hammerspoon can distinguish success from failure.
+function M.insert_from_file(manifestPath)
+    local file = io.open(manifestPath, "rb")
+    if not file then return "ERROR: Missing insertion manifest" end
+    local contents = file:read("*a")
+    file:close()
+    local parsed, request = pcall(vim.json.decode, contents)
+    if not parsed or type(request) ~= "table" then
+        return "ERROR: Invalid insertion manifest"
+    end
+
+    if type(request.path) ~= "string" or type(request.cursor) ~= "table"
+        or type(request.cursor[1]) ~= "number"
+        or type(request.cursor[2]) ~= "number"
+        or type(request.changedtick) ~= "number" then
+        return "ERROR: Incomplete insertion manifest"
+    end
+
+    local buffer = vim.api.nvim_get_current_buf()
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    if vim.bo[buffer].buftype ~= "" or vim.bo[buffer].readonly
+        or not vim.bo[buffer].modifiable
+        or vim.api.nvim_buf_get_name(buffer) ~= request.path
+        or vim.api.nvim_buf_get_changedtick(buffer) ~= request.changedtick
+        or cursor[1] ~= request.cursor[1]
+        or cursor[2] ~= request.cursor[2] then
+        return "ERROR: Neovim buffer or cursor changed; capture again"
+    end
+    if type(request.text) ~= "string" or request.text == "" then
+        return "ERROR: Empty problem"
+    end
+
+    local line = vim.api.nvim_buf_get_lines(buffer, cursor[1] - 1, cursor[1], false)[1]
+    local prefix = line:sub(1, cursor[2])
+    local text = (prefix ~= "" and "\n" or "") .. request.text .. "\n"
+    local lines = vim.split(text, "\n", { plain = true })
+    vim.api.nvim_buf_set_text(
+        buffer, cursor[1] - 1, cursor[2], cursor[1] - 1, cursor[2], lines
+    )
+    local ok, err = pcall(vim.cmd, "write")
+    if not ok then return "ERROR: Inserted but could not save: " .. tostring(err) end
+    publishActivity()
+    return "OK"
+end
+
 local group = vim.api.nvim_create_augroup(
     "CourseWorkflowContext",
     { clear = true }
@@ -131,7 +212,14 @@ vim.api.nvim_create_autocmd({
     "BufWinEnter",
     "BufFilePost",
     "FocusGained",
+    "CursorMoved",
+    "CursorMovedI",
 }, {
+    group = group,
+    callback = publishActivity,
+})
+
+vim.api.nvim_create_autocmd("FocusLost", {
     group = group,
     callback = publish,
 })
@@ -141,6 +229,6 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
     callback = removeState,
 })
 
-vim.schedule(publish)
+vim.schedule(publishActivity)
 
 return M

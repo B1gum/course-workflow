@@ -19,22 +19,26 @@ The central Hammerspoon action layer owns course actions. The launcher, menubar,
 
 ### Global Hammerspoon key layer
 
-The global course layer uses **Command+Shift (`⌘⇧`)** as its Hyper modifier.
+The global course layer uses **Control+Option (`⌃⌥`)**. It does not require a
+remapped physical Hyper key and leaves `⌘⇧Space` free for Siri AI.
 
 | Shortcut | Action |
 |---|---|
-| `⌘⇧Space` | Open course launcher |
-| `⌘⇧N` | Open notes |
-| `⌘⇧A` | Open assignments |
-| `⌘⇧F` | Figures (find/open/create) |
-| `⌘⇧R` | Search course references |
-| `⌘⇧M` | Open MATLAB |
-| `⌘⇧L` | Open literature |
-| `⌘⇧C` | Compile current |
+| `⌃⌥Space` | Open course launcher |
+| `⌃⌥N` | Open notes |
+| `⌃⌥A` | Open assignments |
+| `⌃⌥F` | Figures (find/open/create) |
+| `⌃⌥R` | Search course references |
+| `⌃⌥M` | Open MATLAB |
+| `⌃⌥L` | Open literature |
+| `⌃⌥C` | Compile current |
+| `⌃⌥P` | Capture problem (Skim, Safari, Preview only) |
 
 `New Assignment` is available from the launcher and the Assignments menu. It chooses the next `assignment_XX.tex` number, pre-fills `Assignment N`, writes a `noahassignment` document with the course metadata, and opens it in Neovim.
 
-`⌘⇧F` deliberately uses the figure picker as the single figure entry point; the picker also exposes creation, so a separate global “new figure” shortcut is unnecessary.
+`⌃⌥F` uses the figure picker as the single figure entry point; the picker also
+exposes creation. See [problem capture setup](docs/problem-capture-shortcut.md)
+for the Shortcuts model and `⌃⌥P` workflow.
 
 ## Repository layout
 
