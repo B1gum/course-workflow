@@ -14,6 +14,7 @@ local References = require("course.references")
 local ReferenceChooser = require("course.reference_chooser")
 local ReferenceCapture = require("course.reference_capture")
 local Editor = require("course.editor")
+local ProblemCapture = require("course.problem_capture")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
@@ -188,6 +189,12 @@ Actions.SPEC = {
         implemented = true,
         context = true,
         requirements = { course = true, workContext = true },
+    },
+    captureProblem = {
+        part = "XII",
+        implemented = true,
+        context = true,
+        requirements = { course = true },
     },
 
     openMatlab = {
@@ -2487,6 +2494,32 @@ local function launchFigureWorkflow(context, mode, runtime)
         figuresDir = invocation.figuresDir,
         mode = mode,
     }
+end
+
+function Actions.captureProblem(options, runtime)
+    -- Resolve while the source app is still frontmost (Skim may provide the
+    -- course PDF path). The editor target is chosen separately by its own path.
+    local source = hs.application.frontmostApplication()
+    local bundle = source and source:bundleID()
+    local allowed = {
+        ["net.sourceforge.skim-app.skim"] = true,
+        ["com.apple.Safari"] = true,
+        ["com.apple.Preview"] = true,
+    }
+
+    if not allowed[bundle] then
+        return nil, "Problem capture works in Skim, Safari, and Preview."
+    end
+
+    local context, contextErr = Actions.resolveFor(
+        "captureProblem", options, runtime
+    )
+
+    if not context then
+        return nil, contextErr
+    end
+
+    return ProblemCapture.start(context)
 end
 
 function Actions.newFigure(options, runtime)

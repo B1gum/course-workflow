@@ -3,7 +3,7 @@ local Hotkeys = {}
 local Actions = require("course.actions")
 local Launcher = require("course.launcher")
 
-Hotkeys.MODIFIERS = { "cmd", "shift" }
+Hotkeys.MODIFIERS = { "ctrl", "alt" }
 
 Hotkeys.DEFINITIONS = {
     {
@@ -53,6 +53,12 @@ Hotkeys.DEFINITIONS = {
         label = "Compile Current",
         key = "c",
         action = "compileCurrent",
+    },
+    {
+        id = "captureProblem",
+        label = "Capture Problem",
+        key = "p",
+        action = "captureProblem",
     },
 }
 
