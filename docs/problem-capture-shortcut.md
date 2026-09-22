@@ -50,7 +50,8 @@ from the top-left corner. Include ALL labels, axes, and legend; exclude body
 text and unrelated figures. Return several rectangles if the problem needs
 several separate figures; choose a layout (horizontal, vertical, or grid) for
 their one combined PNG. If no figure is required, return an empty array and
-needs_figure=false; then set crop_confident=true.
+needs_figure=false. Set crop_confident=false if you are unsure whether a
+figure is needed or uncertain about any crop boundary.
 
 Set each *_confident flag false whenever that part is ambiguous. Output EXACTLY
 one valid JSON object, with the following keys and types, without markdown:
