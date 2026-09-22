@@ -10,11 +10,25 @@ local Util = require("course.util")
 
 Launcher._chooser = nil
 Launcher._activeContext = nil
+Launcher._activeSourceBundle = nil
 Launcher._started = false
 
 local ROOT_ROWS = 16
 local CHILD_ROWS = 15
 local WIDTH = 42
+
+-- These are the existing global action shortcuts from course.hotkeys. Show
+-- them beside launcher actions so the launcher teaches the same bindings.
+local ACTION_SHORTCUTS = {
+    openNotes = "⌃⌥N",
+    findFigure = "⌃⌥F",
+    openAssignments = "⌃⌥A",
+    openMatlab = "⌃⌥M",
+    openLiterature = "⌃⌥L",
+    searchReferences = "⌃⌥R",
+    compileCurrent = "⌃⌥C",
+    captureProblem = "⌃⌥P",
+}
 
 local SOURCE_LABELS = {
     [Context.SOURCE.EXPLICIT] = "explicit",
@@ -155,7 +169,7 @@ local function actionChoice(text, actionName, options, subText)
     options = copyOptions(options)
 
     local disabledReason = missingRequirementReason(actionName, options)
-    local detail = subText
+    local detail = subText or ACTION_SHORTCUTS[actionName]
 
     if disabledReason then
         detail = disabledReason
@@ -272,6 +286,7 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("New Figure", "newFigure", activeOptions))
         table.insert(choices, actionChoice("Find Figure", "findFigure", activeOptions))
         table.insert(choices, actionChoice("Open Assignments", "openAssignments", courseOptions))
+        table.insert(choices, actionChoice("Capture Problem", "captureProblem", activeOptions))
         table.insert(choices, actionChoice("New Assignment", "newAssignment", courseOptions))
         table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
         table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
@@ -800,7 +815,11 @@ end
 
 function Launcher._dispatch(choice)
     if choice.kind == "action" then
-        invoke(choice.actionName, actionOptionsFromChoice(choice))
+        local options = actionOptionsFromChoice(choice) or {}
+        if choice.actionName == "captureProblem" and Launcher._activeSourceBundle then
+            options.sourceBundle = Launcher._activeSourceBundle
+        end
+        invoke(choice.actionName, options)
         return
     end
 
@@ -840,12 +859,16 @@ function Launcher._dispatch(choice)
     end
 end
 
-function Launcher.show()
+function Launcher.show(sourceBundle)
     -- Resolve BEFORE hs.chooser takes focus. This preserves exact Level-B
     -- evidence from Neovim/Skim/Finder and makes the prominent active-course
     -- actions stable for the lifetime of this launcher invocation.
     local context = Context.resolve()
     Launcher._activeContext = context
+    local source = hs.application.frontmostApplication()
+    Launcher._activeSourceBundle = sourceBundle
+        or (source and source:bundleID())
+        or nil
 
     present(
         Launcher.buildRootChoices(context),
@@ -927,6 +950,7 @@ function Launcher.stop()
     end
 
     Launcher._activeContext = nil
+    Launcher._activeSourceBundle = nil
     Launcher._started = false
     return true
 end

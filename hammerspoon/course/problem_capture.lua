@@ -24,11 +24,15 @@ local function finish(job, message)
 end
 
 local function run(job, executable, arguments, callback)
-    local task = hs.task.new(executable, function(code, stdout, stderr)
+    -- hs.task.new accepts the argument table in slot 3 when no streaming
+    -- callback is needed. Passing nil in slot 3 is rejected by current
+    -- Hammerspoon builds and would leave Capture._current stuck on this job.
+    local ok, task = pcall(hs.task.new, executable, function(code, stdout, stderr)
         if Capture._current ~= job then return end
         job.task = nil
         callback(code, stdout or "", stderr or "")
-    end, nil, arguments)
+    end, arguments)
+    if not ok then return nil, tostring(task) end
     if not task or not task:start() then
         return nil, "Could not start " .. executable
     end

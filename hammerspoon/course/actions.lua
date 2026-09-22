@@ -2500,7 +2500,10 @@ function Actions.captureProblem(options, runtime)
     -- Resolve while the source app is still frontmost (Skim may provide the
     -- course PDF path). The editor target is chosen separately by its own path.
     local source = hs.application.frontmostApplication()
-    local bundle = source and source:bundleID()
+    local bundle = options and options.sourceBundle
+    if bundle == nil then
+        bundle = source and source:bundleID()
+    end
     local allowed = {
         ["net.sourceforge.skim-app.skim"] = true,
         ["com.apple.Safari"] = true,

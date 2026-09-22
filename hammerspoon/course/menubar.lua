@@ -447,10 +447,14 @@ local function foldersMenu(context)
     }
 end
 
-function Menubar.buildMenu(context, contextErr)
+function Menubar.buildMenu(context, contextErr, sourceBundle)
     local menu = {}
     local course = context and context.course or nil
     local courseOptions = course and explicitCourseOptions(course) or nil
+    local captureOptions = courseOptions and {
+        course = courseOptions.course,
+        sourceBundle = sourceBundle,
+    } or nil
 
     if course then
         table.insert(menu, {
@@ -464,6 +468,7 @@ function Menubar.buildMenu(context, contextErr)
         table.insert(menu, actionItem("Edit Course…", "editCourse", courseOptions))
         table.insert(menu, { title = "Notes", menu = notesMenu(context) })
         table.insert(menu, { title = "Assignments", menu = assignmentsMenu(context) })
+        table.insert(menu, actionItem("Capture Problem", "captureProblem", captureOptions))
         table.insert(menu, { title = "Exercises", menu = exercisesMenu(context) })
         table.insert(menu, { title = "Figures", menu = figuresMenu(context) })
         table.insert(menu, { title = "MATLAB", menu = matlabMenu(context) })
@@ -541,7 +546,7 @@ function Menubar.buildMenu(context, contextErr)
     table.insert(menu, {
         title = "Open Launcher…",
         fn = function()
-            Launcher.show()
+            Launcher.show(sourceBundle)
         end,
     })
 
@@ -591,9 +596,13 @@ function Menubar.start(runtime)
     Menubar._item:setTitle(Menubar.titleForContext(context))
     Menubar._item:setTooltip("AU course workflow")
     Menubar._item:setMenu(function()
+        -- Save the app that was active before the menu takes focus; the
+        -- Problem Capture action can then validate its source reliably.
+        local source = hs.application.frontmostApplication()
+        local sourceBundle = source and source:bundleID() or nil
         local current, err = resolveContext()
         Menubar._item:setTitle(Menubar.titleForContext(current))
-        return Menubar.buildMenu(current, err)
+        return Menubar.buildMenu(current, err, sourceBundle)
     end)
 
     Menubar._started = true
