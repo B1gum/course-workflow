@@ -32,20 +32,41 @@ vim.fn.mkdir(stateDir, "p")
 
 local pid = vim.fn.getpid()
 
-local tty = vim.trim(
-    vim.fn.system({
+local function processTTY(processPid)
+    local value = vim.trim(vim.fn.system({
         "/bin/ps",
         "-p",
-        tostring(pid),
+        tostring(processPid),
         "-o",
         "tty=",
-    })
-)
+    }))
+    if vim.v.shell_error ~= 0 then return nil end
+    value = value:gsub("^/dev/", "")
+    return value:match("^ttys?[%w]+$") and value or nil
+end
 
-tty = tty:gsub("^/dev/", "")
+local tty = processTTY(pid)
+local uiPid = pid
 
--- If Neovim somehow has no terminal, simply disable this bridge.
-if tty == "" or tty == "??" then
+-- Neovim's built-in terminal UI starts the editor as an --embed child. The
+-- child may have no TTY; its immediate parent is the nvim UI with the TTY.
+if not tty then
+    local parent = tonumber(vim.trim(vim.fn.system({
+        "/bin/ps", "-p", tostring(pid), "-o", "ppid=",
+    })))
+    if parent and vim.v.shell_error == 0 then
+        local command = vim.trim(vim.fn.system({
+            "/bin/ps", "-p", tostring(parent), "-o", "comm=",
+        }))
+        if vim.v.shell_error == 0 and command:match("([^/]+)$") == "nvim" then
+            tty = processTTY(parent)
+            uiPid = parent
+        end
+    end
+end
+
+-- No matching terminal UI means there is no iTerm2 session to return to.
+if not tty then
     return M
 end
 
@@ -107,6 +128,7 @@ local function publish()
         path = path,
         pid = pid,
         tty = tty,
+        ui_pid = uiPid,
         updated = os.time(),
         -- Milliseconds since boot are comparable between Neovim processes.
         last_active_ms = lastActivity,

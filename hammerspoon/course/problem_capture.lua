@@ -40,7 +40,9 @@ local function validProcess(state)
     if type(state) ~= "table" or type(state.path) ~= "string"
         or type(state.tty) ~= "string" or not state.tty:match("^ttys?[%w]+$")
         or type(state.pid) ~= "number" or state.pid < 1
-        or state.pid % 1 ~= 0 or type(state.server) ~= "string"
+        or state.pid % 1 ~= 0 or type(state.ui_pid) ~= "number"
+        or state.ui_pid < 1 or state.ui_pid % 1 ~= 0
+        or type(state.server) ~= "string"
         or state.server == "" or type(state.executable) ~= "string"
         or not state.executable:match("/nvim$")
         or type(state.cursor) ~= "table"
@@ -49,14 +51,28 @@ local function validProcess(state)
         return false
     end
     if hs.fs.attributes(state.server, "mode") ~= "socket" then return false end
-    local tty, ttyOk = hs.execute(
-        string.format("/bin/ps -p %d -o tty= 2>/dev/null", state.pid)
-    )
     local comm, commOk = hs.execute(
         string.format("/bin/ps -p %d -o comm= 2>/dev/null", state.pid)
     )
-    return ttyOk and commOk and Util.trim(tty or ""):gsub("^/dev/", "") == state.tty
-        and Util.trim(comm or ""):match("([^/]+)$") == "nvim"
+    if not commOk or Util.trim(comm or ""):match("([^/]+)$") ~= "nvim" then
+        return false
+    end
+    if state.ui_pid ~= state.pid then
+        local parent, parentOk = hs.execute(
+            string.format("/bin/ps -p %d -o ppid= 2>/dev/null", state.pid)
+        )
+        local uiComm, uiOk = hs.execute(
+            string.format("/bin/ps -p %d -o comm= 2>/dev/null", state.ui_pid)
+        )
+        if not parentOk or tonumber(Util.trim(parent or "")) ~= state.ui_pid
+            or not uiOk or Util.trim(uiComm or ""):match("([^/]+)$") ~= "nvim" then
+            return false
+        end
+    end
+    local tty, ttyOk = hs.execute(
+        string.format("/bin/ps -p %d -o tty= 2>/dev/null", state.ui_pid)
+    )
+    return ttyOk and Util.trim(tty or ""):gsub("^/dev/", "") == state.tty
 end
 
 local function targetForCourse(courseId)

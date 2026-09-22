@@ -12,6 +12,9 @@ The editor saves the file. There is no automatic LaTeX compilation.
    `./scripts/install-hammerspoon.sh` and
    `./scripts/install-reference-nvim.sh`. Restart Neovim and reload
    Hammerspoon. The Neovim bridge must publish its RPC socket and cursor.
+   Terminal Neovim may show a `nvim --embed` child process; the bridge follows
+   it to the parent Neovim terminal UI. GUI editors without a terminal UI are
+   not yet supported for automatic return to the editor.
 2. In Shortcuts, create a shortcut named **Course Problem Analysis**. Configure
    it to accept **Images** as input. Add **Use Model**, choose **Cloud Pro** for
    Apple's most capable cloud model (or **Extension Model** if image reasoning
