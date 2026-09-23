@@ -58,28 +58,58 @@ local function startTask(path, arguments, callback)
 end
 
 local function parseResponse(raw)
-    local confidence = raw:match("^LOW_CONFIDENCE:%s*(true)")
-        or raw:match("^LOW_CONFIDENCE:%s*(false)")
-
-    local latex = raw:match("\n%-%-%-LATEX%-%-%-\n(.*)$")
-
-    if not confidence or not latex or latex == "" then
+    if type(raw) ~= "string" or raw == "" then
         return nil, nil
     end
 
-    -- Remove trailing whitespace only.
+    -- Normalize line endings.
+    raw = raw:gsub("\r\n", "\n")
+    raw = raw:gsub("\r", "\n")
+
+    local marker = "---LATEX---"
+    local markerStart, markerEnd = raw:find(marker, 1, true)
+
+    if not markerStart then
+        print("[Smart OCR] Missing LATEX marker:")
+        print(string.format("%q", raw))
+        return nil, nil
+    end
+
+    -- Confidence is useful metadata, but must not be required for a
+    -- successful transcription.
+    local header = raw:sub(1, markerStart - 1)
+
+    local confidenceText = header:match("LOW_CONFIDENCE:%s*(true)")
+        or header:match("LOW_CONFIDENCE:%s*(false)")
+
+    -- Everything after ---LATEX--- is the actual transcription.
+    local latex = raw:sub(markerEnd + 1)
+
+    latex = latex:gsub("^%s+", "")
     latex = latex:gsub("%s+$", "")
 
+    if latex == "" then
+        return nil, nil
+    end
+
+    -- Catch actual escape corruption such as \t -> TAB or \f -> form feed.
     if latex:find("\t", 1, true) or latex:find("\f", 1, true) then
         print("[Smart OCR] Unsafe control character in response:")
         print(string.format("%q", latex))
-        alert("Smart OCR failed — unsafe output")
-        return
+        return nil, nil
     end
-    -- Restore LaTeX backslashes after safe transport through Shortcuts.
+
+    -- The model is instructed to use § for transport safety, but accept
+    -- literal backslashes too when they survive Shortcuts correctly.
     latex = latex:gsub("§", "\\")
 
-    return confidence == "true", latex
+    local lowConfidence = confidenceText == "true"
+
+    if confidenceText == nil then
+        print("[Smart OCR] Warning: model omitted LOW_CONFIDENCE header")
+    end
+
+    return lowConfidence, latex
 end
 
 local function runShortcut(imagePath)
