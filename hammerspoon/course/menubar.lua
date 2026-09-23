@@ -456,6 +456,9 @@ function Menubar.buildMenu(context, contextErr, sourceBundle)
         sourceBundle = sourceBundle,
     } or nil
 
+    table.insert(menu, actionItem("Smart OCR", "captureSmartOCR", nil))
+    table.insert(menu, { title = "-" })
+
     if course then
         table.insert(menu, {
             title = courseLabel(course),

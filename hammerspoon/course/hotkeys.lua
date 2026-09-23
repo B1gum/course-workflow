@@ -60,6 +60,12 @@ Hotkeys.DEFINITIONS = {
         key = "p",
         action = "captureProblem",
     },
+    {
+        id = "captureSmartOCR",
+        label = "Smart OCR",
+        key = "o",
+        action = "captureSmartOCR",
+    },
 }
 
 Hotkeys._hotkeys = {}

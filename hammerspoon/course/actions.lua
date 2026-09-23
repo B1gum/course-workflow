@@ -15,6 +15,7 @@ local ReferenceChooser = require("course.reference_chooser")
 local ReferenceCapture = require("course.reference_capture")
 local Editor = require("course.editor")
 local ProblemCapture = require("course.problem_capture")
+local SmartOCR = require("course.smart_ocr")
 
 Actions.ERROR = {
     NO_WORK_CONTEXT = "No work context available.",
@@ -195,6 +196,11 @@ Actions.SPEC = {
         implemented = true,
         context = true,
         requirements = { course = true },
+    },
+    captureSmartOCR = {
+        part = "XII",
+        implemented = true,
+        context = false,
     },
 
     openMatlab = {
@@ -2523,6 +2529,10 @@ function Actions.captureProblem(options, runtime)
     end
 
     return ProblemCapture.start(context)
+end
+
+function Actions.captureSmartOCR(options, runtime)
+    return SmartOCR.run()
 end
 
 function Actions.newFigure(options, runtime)

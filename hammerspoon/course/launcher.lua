@@ -28,6 +28,7 @@ local ACTION_SHORTCUTS = {
     searchReferences = "⌃⌥R",
     compileCurrent = "⌃⌥C",
     captureProblem = "⌃⌥P",
+    captureSmartOCR = "⌃⌥O",
 }
 
 local SOURCE_LABELS = {
@@ -287,6 +288,7 @@ function Launcher.buildRootChoices(context)
         table.insert(choices, actionChoice("Find Figure", "findFigure", activeOptions))
         table.insert(choices, actionChoice("Open Assignments", "openAssignments", courseOptions))
         table.insert(choices, actionChoice("Capture Problem", "captureProblem", activeOptions))
+        table.insert(choices, actionChoice("Smart OCR", "captureSmartOCR", {}))
         table.insert(choices, actionChoice("New Assignment", "newAssignment", courseOptions))
         table.insert(choices, actionChoice("New Assignment Figure", "newFigure", assignmentOptions))
         table.insert(choices, actionChoice("Find Assignment Figure", "findFigure", assignmentOptions))
