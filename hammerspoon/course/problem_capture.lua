@@ -38,7 +38,7 @@ local function preserveShortcutFailure(job, code, stderr)
     end
 
     local details = string.format(
-        "exit_code: %s\\nshortcut: %s\\ninput_path: %s\\ninput_bytes: %s\\nimage_info:\\n%s\\nstderr:\\n%s\\n",
+        "exit_code: %s\nshortcut: %s\ninput_path: %s\ninput_bytes: %s\nimage_info:\n%s\nstderr:\n%s\n",
         tostring(code),
         SHORTCUT,
         input,
@@ -52,9 +52,9 @@ local function preserveShortcutFailure(job, code, stderr)
 
     local message = "Shortcuts failed. Capture retained at: " .. job.dir
     if wrote then
-        message = message .. "\\nDetails: " .. logPath
+        message = message .. "\nDetails: " .. logPath
     else
-        message = message .. "\\nCould not write error details: " .. tostring(writeErr)
+        message = message .. "\nCould not write error details: " .. tostring(writeErr)
     end
     finish(job, message)
 end
