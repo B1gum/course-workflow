@@ -16,11 +16,47 @@ local function finish(job, message)
     Capture._current = nil
     job.task = nil
     job.chooser = nil
-    for _, name in ipairs({ "selection.png", "analysis.json", "figure.png", "insert.json" }) do
-        os.remove(Util.joinPath(job.dir, name))
+    if not job.keepFiles then
+        for _, name in ipairs({ "selection.png", "analysis.json", "figure.png", "insert.json" }) do
+            os.remove(Util.joinPath(job.dir, name))
+        end
+        hs.fs.rmdir(job.dir)
     end
-    hs.fs.rmdir(job.dir)
     if message then hs.alert.show(message) end
+end
+
+local function preserveShortcutFailure(job, code, stderr)
+    local input = Util.joinPath(job.dir, "selection.png")
+    local attrs = hs.fs.attributes(input)
+    local dimensions = "unavailable"
+    if attrs and attrs.mode == "file" then
+        local output, ok = hs.execute(
+            "/usr/bin/sips -g pixelWidth -g pixelHeight "
+                .. Util.shellQuote(input) .. " 2>/dev/null"
+        )
+        if ok then dimensions = Util.trim(output or "") end
+    end
+
+    local details = string.format(
+        "exit_code: %s\nshortcut: %s\ninput_path: %s\ninput_bytes: %s\nimage_info:\n%s\nstderr:\n%s\n",
+        tostring(code),
+        SHORTCUT,
+        input,
+        tostring(attrs and attrs.size or "unavailable"),
+        dimensions,
+        Util.trim(stderr or "")
+    )
+    local logPath = Util.joinPath(job.dir, "shortcuts-error.txt")
+    local wrote, writeErr = Util.writeFileAtomic(logPath, details)
+    job.keepFiles = true
+
+    local message = "Shortcuts failed. Capture retained at: " .. job.dir
+    if wrote then
+        message = message .. "\nDetails: " .. logPath
+    else
+        message = message .. "\nCould not write error details: " .. tostring(writeErr)
+    end
+    finish(job, message)
 end
 
 local function run(job, executable, arguments, callback)
@@ -315,7 +351,7 @@ local function analyze(job)
         { "run", SHORTCUT, "-i", Util.joinPath(job.dir, "selection.png"),
           "-o", output }, function(code, _, stderr)
             if code ~= 0 then
-                return finish(job, "Shortcuts failed: " .. Util.trim(stderr))
+                return preserveShortcutFailure(job, code, stderr)
             end
             local analysis, parseErr = readAnalysis(output)
             if not analysis then return finish(job, parseErr) end
